@@ -1,0 +1,46 @@
+<div class="bg-neutral-900 border border-neutral-800/80 rounded-xl hover:bg-neutral-800/70 hover:border-neutral-700/60 transition-all duration-200 cursor-pointer flex overflow-hidden h-40 group shadow-lg shadow-black/30"
+     id="entry-{{ entry.id }}"
+     hx-get="/watch-entries/{{ entry.id }}/edit-modal"
+     hx-target="#modal-container"
+     hx-swap="innerHTML">
+
+    <!-- Poster Image -->
+    <div class="w-28 bg-neutral-800 shrink-0 flex items-center justify-center text-xs text-neutral-500 overflow-hidden">
+        {% if entry.tmdb_data.poster_path %}
+            <img src="https://image.tmdb.org/t/p/w154{{ entry.tmdb_data.poster_path }}" alt="Poster" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
+        {% else %}
+            No Poster
+        {% endif %}
+    </div>
+
+    <!-- Details -->
+    <div class="p-4 flex-1 flex flex-col justify-between overflow-hidden">
+        <div>
+            <div class="flex justify-between items-start gap-2">
+                <h3 class="font-bold text-base text-white truncate group-hover:text-emerald-400 transition-colors">{{ entry.tmdb_data.title }}</h3>
+                <span class="bg-yellow-500/10 text-yellow-400 text-[11px] font-bold px-2 py-0.5 rounded border border-yellow-500/20 shrink-0">
+                    IMDb {{ entry.tmdb_data.imdb_rating }}
+                </span>
+            </div>
+            <p class="text-xs text-neutral-400 mt-1">
+                <span class="font-semibold text-neutral-300">Dir:</span> {{ entry.tmdb_data.director }}
+            </p>
+            <p class="text-xs text-neutral-400 truncate mt-0.5">
+                <span class="font-semibold text-neutral-300">Cast:</span> {{ entry.tmdb_data.actors }}
+            </p>
+        </div>
+
+        <!-- User Stats -->
+        <div class="flex items-center space-x-3 mt-2 pt-2 border-t border-neutral-800/60 text-xs">
+            {% if entry.rating %}
+                <span class="font-bold text-emerald-400 bg-emerald-950/40 px-2 py-0.5 rounded border border-emerald-800/40">★ {{ entry.rating }}/10</span>
+            {% else %}
+                <span class="font-medium text-neutral-500 italic">Unrated</span>
+            {% endif %}
+
+            {% if entry.notes %}
+                <span class="text-neutral-400 truncate italic flex-1">"{{ entry.notes }}"</span>
+            {% endif %}
+        </div>
+    </div>
+</div>

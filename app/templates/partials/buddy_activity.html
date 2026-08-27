@@ -1,0 +1,28 @@
+{% if activities %}
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {% for act in activities %}
+            <div class="p-4 bg-neutral-900 border border-neutral-800 rounded-xl flex items-center space-x-3">
+                <div class="w-8 h-8 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold text-xs uppercase">
+                    {{ act.username[0] }}
+                </div>
+                <div>
+                    <p class="text-xs font-bold text-white">{{ act.username }}</p>
+                    <p class="text-[11px] text-neutral-400">{{ act.action_text }}</p>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+{% else %}
+    <div class="p-6 text-center bg-neutral-900/40 border border-neutral-800/80 rounded-2xl flex flex-col items-center justify-center space-y-2">
+        <div class="p-2.5 bg-neutral-800/60 rounded-full text-neutral-400">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/>
+            </svg>
+        </div>
+        <p class="text-sm font-semibold text-neutral-200">No Buddy Activity Yet</p>
+        <p class="text-xs text-neutral-400 max-w-md">You haven't added any buddies yet, or your buddies haven't logged any movies recently.</p>
+        <button hx-get="/buddies/modal" hx-target="#modal-container" hx-swap="innerHTML" class="mt-1 text-xs font-bold text-emerald-400 hover:underline">
+            Find & Add Buddies &rarr;
+        </button>
+    </div>
+{% endif %}

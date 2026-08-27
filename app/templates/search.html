@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Search · The Ledger{% endblock %}
+
+{% block content %}
+<div class="page">
+  <div class="page__header">
+    <p class="page__eyebrow">Discover</p>
+    <h1 class="page__title">Search Titles</h1>
+    <p class="page__subtitle">Find a film or series to add to your log.</p>
+  </div>
+
+  <form class="index-search" id="search-form" role="search">
+    <input type="search" id="search-input" name="q" placeholder="Search by title…" autofocus required>
+    <button class="btn btn--signal" type="submit">Search</button>
+  </form>
+
+  <div id="search-results" class="catalog"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/search.js"></script>
+{% endblock %}

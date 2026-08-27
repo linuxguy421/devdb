@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}My Log · The Ledger{% endblock %}
+
+{% block content %}
+<div class="page">
+  <div class="page__header">
+    <p class="page__eyebrow">Watch History</p>
+    <h1 class="page__title">My Log</h1>
+    <p class="page__subtitle">Everything you've logged, most recent first.</p>
+  </div>
+
+  <div class="stats-strip" id="stats-strip" hidden>
+    <div class="stat">
+      <span class="stat__value tabular" id="stat-total">—</span>
+      <span class="stat__label">Titles Logged</span>
+    </div>
+    <div class="stat">
+      <span class="stat__value tabular" id="stat-avg">—</span>
+      <span class="stat__label">Average Rating</span>
+    </div>
+  </div>
+
+  <div id="log-list" class="catalog catalog--list">
+    <p style="font-family: var(--font-mono); font-size: 0.85rem; color: var(--color-text-muted);">Loading your log…</p>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/dashboard.js"></script>
+{% endblock %}

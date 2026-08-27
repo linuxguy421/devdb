@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-neutral-950 text-neutral-100 selection:bg-emerald-500 selection:text-neutral-950">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DevDB - Watched Titles</title>
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="min-h-screen flex flex-col font-sans antialiased bg-neutral-950 text-neutral-100">
+
+    <!-- Top Navigation Bar -->
+    <nav class="sticky top-0 z-40 bg-neutral-900/90 backdrop-blur-md border-b border-neutral-800/80 px-6 py-3.5">
+        <div class="max-w-7xl mx-auto flex justify-between items-center">
+            
+            <!-- Brand & Links -->
+            <div class="flex items-center space-x-8">
+                <a href="/" class="flex items-center space-x-2 text-emerald-500 font-extrabold text-2xl tracking-tight hover:opacity-90 transition">
+                    <svg class="w-7 h-7 fill-current" viewBox="0 0 24 24">
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14.5v-9l6 4.5-6 4.5z"/>
+                    </svg>
+                    <span>DevDB</span>
+                </a>
+
+                <div class="flex items-center space-x-2 text-sm font-semibold">
+                    <a href="/" class="px-4 py-1.5 rounded-full text-neutral-400 hover:text-white hover:bg-neutral-800/60 transition-all duration-200">
+                        Search
+                    <a href="/to-watch" class="px-4 py-1.5 rounded-full {% if request.url.path == '/to-watch' %}bg-neutral-800 text-white border border-neutral-700/50 shadow-sm{% else %}text-neutral-400 hover:text-white hover:bg-neutral-800/60{% endif %} transition-all duration-200">
+                        Want To Watch
+                    </a>
+                    </a>
+                    <a href="/watched" class="px-4 py-1.5 rounded-full bg-neutral-800 text-white border border-neutral-700/50 shadow-sm transition-all duration-200">
+                        Watched
+                    </a>
+                </div>
+            </div>
+
+            <!-- Profile Info -->
+            <div class="flex items-center space-x-3 bg-neutral-900/80 border border-neutral-800 rounded-full px-3.5 py-1.5">
+                <div class="w-6 h-6 rounded-full bg-emerald-500 flex items-center justify-center text-neutral-950 font-extrabold text-xs uppercase">
+                    {{ current_user.username[0] if current_user and current_user.username else 'U' }}
+                </div>
+                <span class="text-xs font-semibold text-neutral-300">{{ current_user.username if current_user else 'User' }}</span>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content Area -->
+    <main class="flex-1 max-w-7xl w-full mx-auto px-6 py-8">
+        <div class="flex justify-between items-end border-b border-neutral-800/80 pb-4 mb-6">
+            <div>
+                <h1 class="text-3xl font-extrabold text-white tracking-tight">My Library</h1>
+                <p class="text-sm text-neutral-400 mt-1">Titles you have watched and rated.</p>
+            </div>
+            <span class="text-xs font-bold uppercase tracking-wider text-emerald-400 bg-emerald-950/60 border border-emerald-800/50 px-3 py-1 rounded-full">
+                {{ entries|length }} Watched
+            </span>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {% for entry in entries %}
+                {% include "partials/watched_card.html" %}
+            {% else %}
+                <div class="col-span-full py-16 text-center bg-neutral-900/40 border border-dashed border-neutral-800/80 rounded-2xl">
+                    <p class="text-neutral-400 font-medium">No watched items yet.</p>
+                    <a href="/" class="inline-block mt-3 text-sm font-semibold text-emerald-400 hover:underline">Search for titles to add</a>
+                </div>
+            {% endfor %}
+        </div>
+    </main>
+
+    <!-- Container for dynamic HTMX modals -->
+    <div id="modal-container"></div>
+</body>
+</html>

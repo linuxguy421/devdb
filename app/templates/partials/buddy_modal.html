@@ -1,0 +1,56 @@
+<div id="buddy-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4">
+    <div class="bg-neutral-900 border border-neutral-800 rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden flex flex-col max-h-[85vh]">
+
+        <!-- Header -->
+        <div class="p-5 bg-neutral-900 border-b border-neutral-800 flex justify-between items-center">
+            <div>
+                <h2 class="text-xl font-extrabold text-white">Add & Manage Buddies</h2>
+                <p class="text-xs text-neutral-400">Search by username to connect</p>
+            </div>
+            <button onclick="document.getElementById('buddy-modal').remove()" class="text-neutral-400 hover:text-white p-1">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+            </button>
+        </div>
+
+        <div class="p-5 space-y-6 overflow-y-auto flex-1">
+            
+            <!-- Incoming Requests (If Any) -->
+            {% if pending_requests %}
+            <div class="space-y-3 bg-neutral-950/50 p-3.5 rounded-xl border border-neutral-800/80">
+                <h3 class="text-xs font-bold uppercase tracking-wider text-emerald-400">Pending Requests</h3>
+                <div class="space-y-2">
+                    {% for req in pending_requests %}
+                    <div id="pending-req-{{ req.id }}" class="flex items-center justify-between bg-neutral-900 p-2.5 rounded-lg border border-neutral-800">
+                        <span class="text-sm font-semibold text-white">{{ req.requester.username }}</span>
+                        <div class="flex space-x-2">
+                            <form hx-post="/buddies/respond/{{ req.id }}" hx-target="#pending-req-{{ req.id }}" hx-swap="delete">
+                                <button type="submit" name="action" value="accept" class="text-xs font-bold bg-emerald-500 text-neutral-950 px-3 py-1 rounded-full hover:bg-emerald-400">Accept</button>
+                                <button type="submit" name="action" value="decline" class="text-xs font-semibold bg-neutral-800 text-neutral-300 px-3 py-1 rounded-full hover:bg-neutral-700">Decline</button>
+                            </form>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- User Search Input -->
+            <div class="space-y-3">
+                <label class="block text-xs font-bold uppercase tracking-wider text-neutral-400">Find Users</label>
+                <div class="relative">
+                    <input type="text"
+                           name="q"
+                           placeholder="Enter username..."
+                           hx-get="/buddies/search"
+                           hx-trigger="keyup changed delay:300ms"
+                           hx-target="#buddy-search-results"
+                           class="w-full bg-neutral-800 border border-neutral-700 text-white rounded-xl px-4 py-2.5 text-sm focus:border-emerald-500 outline-none">
+                </div>
+                <div id="buddy-search-results" class="space-y-2 mt-2 max-h-48 overflow-y-auto"></div>
+            </div>
+
+        </div>
+    </div>
+</div>

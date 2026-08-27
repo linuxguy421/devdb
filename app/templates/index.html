@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-neutral-950 text-neutral-100 selection:bg-emerald-500 selection:text-neutral-950">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DevDB - Search & Dashboard</title>
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="min-h-screen flex flex-col font-sans antialiased bg-neutral-950 text-neutral-100">
+
+    <nav class="sticky top-0 z-40 bg-neutral-900/90 backdrop-blur-md border-b border-neutral-800/80 px-6 py-3.5">
+        <div class="max-w-7xl mx-auto flex justify-between items-center">
+            <div class="flex items-center space-x-8">
+                <a href="/" class="flex items-center space-x-2 text-emerald-500 font-extrabold text-2xl tracking-tight hover:opacity-90 transition">
+                    <svg class="w-7 h-7 fill-current" viewBox="0 0 24 24">
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14.5v-9l6 4.5-6 4.5z"/>
+                    </svg>
+                    <span>DevDB</span>
+                </a>
+                <div class="flex items-center space-x-2 text-sm font-semibold">
+                    <a href="/" class="px-4 py-1.5 rounded-full bg-neutral-800 text-white border border-neutral-700/50 shadow-sm transition-all duration-200">Search</a>
+                    <a href="/to-watch" class="px-4 py-1.5 rounded-full {% if request.url.path == '/to-watch' %}bg-neutral-800 text-white border border-neutral-700/50 shadow-sm{% else %}text-neutral-400 hover:text-white hover:bg-neutral-800/60{% endif %} transition-all duration-200">Want To Watch</a>
+                    <a href="/watched" class="px-4 py-1.5 rounded-full text-neutral-400 hover:text-white hover:bg-neutral-800/60 transition-all duration-200">Watched</a>
+                </div>
+            </div>
+            <div class="flex items-center space-x-4">
+                {% if current_user %}
+                    <div class="flex items-center space-x-3 bg-neutral-900/80 border border-neutral-800 rounded-full px-3.5 py-1.5">
+                        <div class="w-6 h-6 rounded-full bg-emerald-500 flex items-center justify-center text-neutral-950 font-extrabold text-xs uppercase">
+                            {{ current_user.username[0] }}
+                        </div>
+                        <span class="text-xs font-semibold text-neutral-300">{{ current_user.username }}</span>
+                    </div>
+                    <a href="/logout" class="text-xs font-semibold text-neutral-400 hover:text-red-400 transition">Logout</a>
+                {% else %}
+                    <a href="/login" class="text-sm font-semibold text-neutral-300 hover:text-white transition">Log In</a>
+                    <a href="/register" class="text-sm font-extrabold bg-emerald-500 text-neutral-950 hover:bg-emerald-400 px-4 py-1.5 rounded-full shadow-lg shadow-emerald-950/40 transition">Register</a>
+                {% endif %}
+            </div>
+        </div>
+    </nav>
+
+    <main class="flex-1 max-w-7xl w-full mx-auto px-6 py-8 space-y-10">
+        <section class="space-y-4">
+            <div class="flex justify-between items-end">
+                <div>
+                    <h1 class="text-3xl font-extrabold text-white tracking-tight">
+                        {% if current_user %}Welcome back, {{ current_user.username }}{% else %}Discover & Track Movies{% endif %}
+                    </h1>
+                    <p class="text-sm text-neutral-400 mt-1">Search TMDB to add movies or TV shows to your database.</p>
+                </div>
+            </div>
+
+            <div class="relative">
+                <input type="text"
+                       name="q"
+                       placeholder="Search movies or TV shows..."
+                       hx-get="/titles/search-partial"
+                       hx-trigger="keyup changed delay:300ms, search"
+                       hx-target="#search-results"
+                       class="w-full bg-neutral-900 border border-neutral-800 text-white rounded-xl px-5 py-3.5 pl-12 text-sm focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none shadow-lg shadow-black/40 placeholder-neutral-500 transition-all">
+                <svg class="w-5 h-5 text-neutral-500 absolute left-4 top-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                </svg>
+            </div>
+        </section>
+
+        <section id="search-results" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></section>
+
+        <!-- Buddy Activity Feed -->
+        <section class="space-y-4 pt-4 border-t border-neutral-800/60">
+            <div class="flex justify-between items-center">
+                <div class="flex items-center space-x-2">
+                    <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/>
+                    </svg>
+                    <h2 class="text-xl font-bold text-white tracking-tight">Buddy Activity</h2>
+                </div>
+                {% if current_user %}
+                <button hx-get="/buddies/modal" hx-target="#modal-container" hx-swap="innerHTML" class="text-xs font-bold text-emerald-400 hover:underline">
+                    Manage Buddies
+                </button>
+                {% endif %}
+            </div>
+
+            {% if current_user %}
+                <div hx-get="/buddies/activity-partial" hx-trigger="load" hx-swap="innerHTML">
+                    <div class="flex space-x-4 overflow-x-hidden">
+                        <div class="w-64 h-28 bg-neutral-900 border border-neutral-800 rounded-xl animate-pulse"></div>
+                        <div class="w-64 h-28 bg-neutral-900 border border-neutral-800 rounded-xl animate-pulse"></div>
+                    </div>
+                </div>
+            {% else %}
+                <div class="p-6 bg-neutral-900/60 border border-neutral-800 rounded-2xl text-center space-y-3">
+                    <p class="text-xs text-neutral-400">Log in or create an account to view activity from your buddies.</p>
+                    <div class="flex justify-center gap-3">
+                        <a href="/login" class="px-4 py-1.5 text-xs font-bold bg-neutral-800 hover:bg-neutral-700 text-white rounded-full transition">Log In</a>
+                        <a href="/register" class="px-4 py-1.5 text-xs font-bold bg-emerald-500 hover:bg-emerald-400 text-neutral-950 rounded-full transition">Register</a>
+                    </div>
+                </div>
+            {% endif %}
+        </section>
+
+        <!-- Mutual Watchlist Matches -->
+        <section class="space-y-4 pt-4 border-t border-neutral-800/60">
+            <div class="flex justify-between items-center">
+                <div class="flex items-center space-x-2">
+                    <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/>
+                    </svg>
+                    <h2 class="text-xl font-bold text-white tracking-tight">Mutual Watchlist Matches</h2>
+                </div>
+            </div>
+
+            {% if current_user %}
+                <div hx-get="/buddies/mutual-watchlist" hx-trigger="load" hx-swap="innerHTML">
+                    <div class="h-24 bg-neutral-900 border border-neutral-800 rounded-xl animate-pulse"></div>
+                </div>
+            {% else %}
+                <div class="p-6 bg-neutral-900/60 border border-neutral-800 rounded-2xl text-center">
+                    <p class="text-xs text-neutral-400">Log in to compare watchlists with friends.</p>
+                </div>
+            {% endif %}
+        </section>
+
+        <!-- Dynamic Trending Section -->
+        <section class="space-y-4 pt-4 border-t border-neutral-800/60">
+            <div class="flex justify-between items-center">
+                <div class="flex items-center space-x-2">
+                    <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/>
+                    </svg>
+                    <h2 class="text-xl font-bold text-white tracking-tight">Trending This Week</h2>
+                </div>
+            </div>
+
+            {% if trending %}
+                <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                    {% for item in trending %}
+                    <div class="bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden hover:border-neutral-700 transition">
+                        <img src="{{ item.poster_url }}" alt="{{ item.title }}" class="w-full h-52 object-cover">
+                        <div class="p-2.5">
+                            <p class="text-xs font-bold text-white truncate">{{ item.title }}</p>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="p-6 text-center bg-neutral-900/40 border border-neutral-800/80 rounded-2xl flex flex-col items-center justify-center space-y-2">
+                    <div class="p-2.5 bg-neutral-800/60 rounded-full text-neutral-400">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                        </svg>
+                    </div>
+                    <p class="text-sm font-semibold text-neutral-200">Trending Data Unavailable</p>
+                    <p class="text-xs text-neutral-400 max-w-md">Unable to fetch weekly trending titles right now. Please check your TMDB configuration or retry later.</p>
+                </div>
+            {% endif %}
+        </section>
+
+    </main>
+
+    <div id="modal-container"></div>
+</body>
+</html>

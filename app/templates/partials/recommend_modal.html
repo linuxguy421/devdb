@@ -1,0 +1,63 @@
+<div id="recommend-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4">
+    <div class="bg-neutral-900 border border-neutral-800 rounded-2xl shadow-2xl max-w-md w-full overflow-hidden">
+        
+        <div class="p-5 bg-neutral-900 border-b border-neutral-800 flex justify-between items-center">
+            <h2 class="text-lg font-extrabold text-white">Recommend Title</h2>
+            <button onclick="document.getElementById('recommend-modal').remove()" class="text-neutral-400 hover:text-white">✕</button>
+        </div>
+
+        <form hx-post="/buddies/recommend"
+              hx-target="#recommend-modal"
+              hx-swap="delete"
+              class="p-5 space-y-4">
+            
+            <input type="hidden" name="tmdb_id" value="{{ tmdb_id }}">
+            <input type="hidden" name="media_type" value="{{ media_type }}">
+
+            <div class="flex items-center space-x-3 bg-neutral-950/60 p-3 rounded-xl border border-neutral-800">
+                <div class="w-12 h-16 bg-neutral-800 rounded overflow-hidden shrink-0">
+                    {% if tmdb_data.poster_path %}
+                        <img src="https://image.tmdb.org/t/p/w92{{ tmdb_data.poster_path }}" class="w-full h-full object-cover">
+                    {% endif %}
+                </div>
+                <div>
+                    <h3 class="font-bold text-sm text-white truncate">{{ tmdb_data.title }}</h3>
+                    <p class="text-xs text-neutral-400 mt-0.5">{{ tmdb_data.director }}</p>
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-xs font-bold uppercase tracking-wider text-neutral-400 mb-1.5">Select Buddy</label>
+                {% if buddies %}
+                    <select name="receiver_id" class="w-full bg-neutral-800 border border-neutral-700 text-white rounded-xl p-2.5 text-sm focus:border-emerald-500 outline-none">
+                        {% for b in buddies %}
+                            <option value="{{ b.id }}">{{ b.username }}</option>
+                        {% endfor %}
+                    </select>
+                {% else %}
+                    <p class="text-xs text-neutral-500 italic">You don't have any accepted buddies yet.</p>
+                {% endif %}
+            </div>
+
+            <div>
+                <label class="block text-xs font-bold uppercase tracking-wider text-neutral-400 mb-1.5">Note (Optional)</label>
+                <textarea name="note" rows="2" placeholder="Why do you recommend this?"
+                          class="w-full bg-neutral-800 border border-neutral-700 text-white rounded-xl p-2.5 text-sm focus:border-emerald-500 outline-none resize-none placeholder-neutral-500"></textarea>
+            </div>
+
+            <div class="flex justify-end space-x-2 pt-3 border-t border-neutral-800">
+                <button type="button" onclick="document.getElementById('recommend-modal').remove()"
+                        class="px-4 py-2 text-xs font-semibold text-neutral-300 bg-neutral-800 rounded-full hover:bg-neutral-700">
+                    Cancel
+                </button>
+                {% if buddies %}
+                <button type="submit"
+                        class="px-4 py-2 text-xs font-extrabold bg-emerald-500 text-neutral-950 hover:bg-emerald-400 rounded-full shadow-md">
+                    Send Recommendation
+                </button>
+                {% endif %}
+            </div>
+        </form>
+
+    </div>
+</div>

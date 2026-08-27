@@ -1,0 +1,74 @@
+{% if activity_items %}
+    <div class="flex space-x-4 overflow-x-auto pb-4 scrollbar-thin scrollbar-thumb-neutral-800">
+        {% for item in activity_items %}
+        <div class="w-72 bg-neutral-900 border border-neutral-800/80 rounded-xl p-3.5 flex flex-col justify-between shrink-0 hover:bg-neutral-800/70 transition group shadow-lg shadow-black/30">
+
+            <!-- Buddy Header -->
+            <div class="flex items-center space-x-2.5 mb-3">
+                <div class="w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center text-neutral-950 font-extrabold text-xs uppercase shrink-0 ring-2 ring-emerald-500/20">
+                    {{ item.user.username[0] }}
+                </div>
+                <div class="overflow-hidden flex-1">
+                    <p class="text-xs font-bold text-white truncate">{{ item.user.username }}</p>
+                    <div class="flex items-center gap-1.5 mt-0.5">
+                        <span class="text-[10px] font-semibold text-emerald-400 bg-emerald-950/80 px-1.5 py-0.5 rounded border border-emerald-800/40 capitalize">
+                            {% if item.entry.status == 'watched' %}
+                                Watched
+                            {% elif item.entry.status == 'to_watch' %}
+                                Wants to watch
+                            {% else %}
+                                {{ item.entry.status | replace('_', ' ') }}
+                            {% endif %}
+                        </span>
+                        <span class="text-[10px] font-medium text-neutral-500 uppercase tracking-wider">
+                            • {{ item.entry.media_type }}
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Title & Poster Card -->
+            <div class="flex space-x-3 items-center bg-neutral-950/70 p-2 rounded-lg border border-neutral-800/60">
+                <div class="w-12 h-16 bg-neutral-800 rounded overflow-hidden shrink-0 border border-neutral-700/40 flex items-center justify-center">
+                    {% if item.tmdb_data and item.tmdb_data.poster_path %}
+                        <img src="https://image.tmdb.org/t/p/w92{{ item.tmdb_data.poster_path }}"
+                             alt="{{ item.tmdb_data.title }}"
+                             class="w-full h-full object-cover">
+                    {% else %}
+                        <svg class="w-6 h-6 text-neutral-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 4v16M17 4v16M3 8h18M3 16h18"></path>
+                        </svg>
+                    {% endif %}
+                </div>
+                <div class="overflow-hidden flex-1">
+                    <h4 class="text-xs font-bold text-neutral-200 truncate group-hover:text-emerald-400 transition-colors">
+                        {{ item.tmdb_data.title if item.tmdb_data else 'Media Details Unavailable' }}
+                    </h4>
+
+                    {% if item.entry.rating %}
+                        <div class="flex items-center gap-1 mt-1">
+                            <span class="inline-block text-[10px] font-extrabold text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
+                                ★ {{ item.entry.rating }}/10
+                            </span>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+        </div>
+        {% endfor %}
+    </div>
+{% else %}
+    <div class="bg-neutral-900/60 border border-neutral-800/80 rounded-2xl p-6 flex flex-col md:flex-row items-center justify-between gap-4">
+        <div class="space-y-1 text-center md:text-left">
+            <h3 class="font-bold text-neutral-200">No buddy activity yet</h3>
+            <p class="text-xs text-neutral-400">Add buddies or check back once your friends start rating and saving titles.</p>
+        </div>
+        <button hx-get="/buddies/modal"
+                hx-target="#modal-container"
+                hx-swap="innerHTML"
+                class="px-4 py-2 text-xs font-bold text-neutral-950 bg-emerald-500 hover:bg-emerald-400 rounded-full shadow-md transition shrink-0">
+            + Add Buddies
+        </button>
+    </div>
+{% endif %}

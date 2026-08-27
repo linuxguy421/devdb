@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-neutral-950 text-neutral-100 selection:bg-emerald-500 selection:text-neutral-950">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DevDB - Register</title>
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-center p-6 bg-neutral-950 font-sans antialiased">
+
+    <div class="w-full max-w-md bg-neutral-900 border border-neutral-800/80 rounded-2xl p-8 shadow-2xl shadow-black/60">
+        
+        <!-- Brand Logo & Header -->
+        <div class="flex flex-col items-center mb-8 space-y-2">
+            <a href="/" class="flex items-center space-x-2 text-emerald-500 font-extrabold text-3xl tracking-tight hover:opacity-90 transition">
+                <svg class="w-9 h-9 fill-current" viewBox="0 0 24 24">
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14.5v-9l6 4.5-6 4.5z"/>
+                </svg>
+                <span>DevDB</span>
+            </a>
+            <p class="text-sm font-medium text-neutral-400">Create an account to start tracking movies</p>
+        </div>
+
+        <!-- Dynamic Error Banner -->
+        {% if error %}
+        <div class="mb-6 p-3.5 rounded-xl bg-red-950/40 border border-red-800/60 text-red-300 text-xs font-semibold flex items-center space-x-2.5">
+            <svg class="w-4 h-4 text-red-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+            </svg>
+            <span>{{ error }}</span>
+        </div>
+        {% endif %}
+
+        <!-- Form -->
+        <form action="/register" method="POST" class="space-y-5">
+            <div>
+                <label class="block text-xs font-bold uppercase tracking-wider text-neutral-400 mb-2">Username</label>
+                <input type="text" 
+                       name="username" 
+                       required 
+                       placeholder="Choose a username"
+                       class="w-full bg-neutral-950 border border-neutral-800 text-white rounded-xl px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 placeholder-neutral-600 transition">
+            </div>
+
+            <div>
+                <label class="block text-xs font-bold uppercase tracking-wider text-neutral-400 mb-2">Email Address</label>
+                <input type="email" 
+                       name="email" 
+                       required 
+                       placeholder="you@example.com"
+                       class="w-full bg-neutral-950 border border-neutral-800 text-white rounded-xl px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 placeholder-neutral-600 transition">
+            </div>
+
+            <div>
+                <label class="block text-xs font-bold uppercase tracking-wider text-neutral-400 mb-2">Password</label>
+                <input type="password" 
+                       name="password" 
+                       required 
+                       placeholder="••••••••"
+                       class="w-full bg-neutral-950 border border-neutral-800 text-white rounded-xl px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 placeholder-neutral-600 transition">
+            </div>
+
+            <button type="submit" 
+                    class="w-full bg-emerald-500 text-neutral-950 hover:bg-emerald-400 font-extrabold py-3.5 rounded-xl shadow-lg shadow-emerald-950/40 transition-all duration-200">
+                Create Account
+            </button>
+        </form>
+
+        <!-- Footer Links -->
+        <div class="mt-6 text-center text-xs text-neutral-500">
+            Already have an account? 
+            <a href="/login" class="text-emerald-400 font-bold hover:underline ml-1">Sign in here</a>
+        </div>
+
+    </div>
+
+</body>
+</html>
