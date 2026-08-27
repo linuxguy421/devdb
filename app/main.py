@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app import models  # Import models so Base metadata is populated
 from app.config import settings
@@ -21,6 +22,9 @@ app = FastAPI(
     debug=settings.DEBUG,
     lifespan=lifespan,
 )
+
+# Mount static directory for logo and asset serving
+app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 # Permit origins across localhost and LAN
 origins = [

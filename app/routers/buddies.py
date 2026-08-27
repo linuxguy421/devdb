@@ -193,9 +193,27 @@ async def remove_buddy(
 @router.get("/activity-partial", response_class=HTMLResponse)
 async def buddy_activity_partial(
     request: Request,
+    offset: int = 0,
+    limit: int = 12,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    MAX_TOTAL = 50
+
+    if offset >= MAX_TOTAL:
+        return templates.TemplateResponse(
+            request=request,
+            name="partials/buddy_activity.html",
+            context={
+                "activity_items": [],
+                "offset": offset,
+                "has_more": False,
+                "next_offset": offset,
+            }
+        )
+
+    effective_limit = min(limit, MAX_TOTAL - offset)
+
     try:
         stmt_friends = select(Friendship).where(
             or_(Friendship.user_id == current_user.id, Friendship.buddy_id == current_user.id),
@@ -207,7 +225,14 @@ async def buddy_activity_partial(
 
         if not buddy_ids:
             return templates.TemplateResponse(
-                request=request, name="partials/buddy_activity.html", context={"activity_items": []}
+                request=request,
+                name="partials/buddy_activity.html",
+                context={
+                    "activity_items": [],
+                    "offset": offset,
+                    "has_more": False,
+                    "next_offset": 0,
+                }
             )
 
         stmt_entries = (
@@ -215,7 +240,8 @@ async def buddy_activity_partial(
             .join(User, WatchEntry.user_id == User.id)
             .where(WatchEntry.user_id.in_(buddy_ids))
             .order_by(WatchEntry.created_at.desc())
-            .limit(12)
+            .offset(offset)
+            .limit(effective_limit)
         )
         res_entries = await db.execute(stmt_entries)
         results = res_entries.all()
@@ -247,14 +273,24 @@ async def buddy_activity_partial(
 
         activity_items = await asyncio.gather(*[fetch_item(entry, user) for entry, user in results])
 
+        next_offset = offset + len(activity_items)
+        has_more = (len(activity_items) == effective_limit) and (next_offset < MAX_TOTAL)
+
     except Exception as exc:
         logger.error(f"Error in buddy_activity_partial: {exc}", exc_info=True)
         activity_items = []
+        next_offset = offset
+        has_more = False
 
     return templates.TemplateResponse(
         request=request,
         name="partials/buddy_activity.html",
-        context={"activity_items": activity_items}
+        context={
+            "activity_items": activity_items,
+            "offset": offset,
+            "next_offset": next_offset,
+            "has_more": has_more,
+        }
     )
 
 
