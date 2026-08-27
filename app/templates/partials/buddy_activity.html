@@ -1,5 +1,8 @@
 {% macro render_card(item) %}
-<div class="p-4 bg-neutral-900 border border-neutral-800 rounded-xl flex flex-col justify-between space-y-3">
+<div hx-get="/titles/info-modal/{{ item.entry.tmdb_id }}/{{ item.entry.media_type }}"
+     hx-target="#modal-container"
+     hx-swap="innerHTML"
+     class="p-4 bg-neutral-900 border border-neutral-800 hover:border-neutral-700 hover:bg-neutral-800/80 rounded-xl flex flex-col justify-between space-y-3 cursor-pointer transition">
     <div class="flex items-start justify-between space-x-3">
         <div class="flex items-center space-x-3 min-w-0">
             {% if item.user.avatar_url %}
@@ -47,14 +50,12 @@
 
 {% if offset > 0 %}
 
-    <!-- Append items out-of-band directly into the existing grid -->
     <div id="buddy-activity-grid" hx-swap-oob="beforeend">
         {% for item in activity_items %}
             {{ render_card(item) }}
         {% endfor %}
     </div>
 
-    <!-- Swap out the button container -->
     {% if has_more %}
     <div id="buddy-activity-load-more" class="pt-2 text-center">
         <button hx-get="/buddies/activity-partial?offset={{ next_offset }}"

@@ -1,0 +1,97 @@
+<div class="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+    <!-- Click outside to close -->
+    <div class="absolute inset-0" onclick="document.getElementById('modal-container').innerHTML=''"></div>
+
+    <div class="relative bg-neutral-900 border border-neutral-800 rounded-2xl max-w-xl w-full overflow-hidden shadow-2xl z-10 flex flex-col md:flex-row">
+        
+        <!-- Close Button -->
+        <button onclick="document.getElementById('modal-container').innerHTML=''" 
+                class="absolute top-3 right-3 z-20 text-neutral-400 hover:text-white bg-neutral-950/60 p-1.5 rounded-full border border-neutral-800 transition">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+        </button>
+
+        <!-- Poster Image -->
+        {% if tmdb_data.poster_path %}
+        <div class="w-full md:w-48 h-64 md:h-auto bg-neutral-950 shrink-0 border-b md:border-b-0 md:border-r border-neutral-800">
+            <img src="https://image.tmdb.org/t/p/w500{{ tmdb_data.poster_path }}" alt="{{ tmdb_data.title }}" class="w-full h-full object-cover">
+        </div>
+        {% endif %}
+
+        <!-- Content Details -->
+        <div class="p-5 flex-1 flex flex-col justify-between space-y-4">
+            <div class="space-y-2">
+                <div class="flex items-center space-x-2">
+                    <span class="text-[10px] uppercase font-black text-emerald-400 bg-emerald-950/60 px-2 py-0.5 rounded-full border border-emerald-800/60">
+                        {{ media_type }}
+                    </span>
+                    {% if tmdb_data.release_date %}
+                    <span class="text-xs text-neutral-400 font-medium">
+                        {{ tmdb_data.release_date[:4] if tmdb_data.release_date|length >= 4 else tmdb_data.release_date }}
+                    </span>
+                    {% endif %}
+                </div>
+
+                <h3 class="text-xl font-bold text-white leading-tight">
+                    {{ tmdb_data.title }}
+                </h3>
+
+                {% if tmdb_data.overview %}
+                <p class="text-xs text-neutral-300 leading-relaxed max-h-36 overflow-y-auto pr-1">
+                    {{ tmdb_data.overview }}
+                </p>
+                {% else %}
+                <p class="text-xs text-neutral-500 italic">No overview available for this title.</p>
+                {% endif %}
+            </div>
+
+            <!-- Modal Action Buttons -->
+            {% if current_user %}
+            <div class="pt-3 border-t border-neutral-800/80 flex gap-2">
+                <form hx-post="/watch-entries" hx-target="#modal-container" class="flex-1">
+                    <input type="hidden" name="tmdb_id" value="{{ tmdb_id }}">
+                    <input type="hidden" name="media_type" value="{{ media_type }}">
+                    <input type="hidden" name="status_val" value="to_watch">
+                    <input type="hidden" name="from_modal" value="true">
+                    <button type="submit" 
+                            class="w-full py-2 px-3 text-xs font-bold rounded-xl border transition flex items-center justify-center space-x-1.5
+                            {% if existing_entry and existing_entry.status == 'to_watch' %}
+                                bg-amber-500/20 text-amber-300 border-amber-500/50
+                            {% else %}
+                                bg-neutral-800 hover:bg-neutral-700 text-neutral-200 border-neutral-700
+                            {% endif %}">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                        </svg>
+                        <span>Want To See</span>
+                    </button>
+                </form>
+
+                <form hx-post="/watch-entries" hx-target="#modal-container" class="flex-1">
+                    <input type="hidden" name="tmdb_id" value="{{ tmdb_id }}">
+                    <input type="hidden" name="media_type" value="{{ media_type }}">
+                    <input type="hidden" name="status_val" value="watched">
+                    <input type="hidden" name="from_modal" value="true">
+                    <button type="submit" 
+                            class="w-full py-2 px-3 text-xs font-bold rounded-xl transition flex items-center justify-center space-x-1.5
+                            {% if existing_entry and existing_entry.status == 'watched' %}
+                                bg-emerald-500/20 text-emerald-300 border border-emerald-500/50
+                            {% else %}
+                                bg-emerald-500 hover:bg-emerald-400 text-neutral-950
+                            {% endif %}">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                        </svg>
+                        <span>Watched</span>
+                    </button>
+                </form>
+            </div>
+            {% else %}
+            <div class="pt-3 border-t border-neutral-800 text-center">
+                <a href="/login" class="text-xs text-emerald-400 font-bold hover:underline">Log in to save this title</a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>

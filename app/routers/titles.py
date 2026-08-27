@@ -1,3 +1,4 @@
+from typing import Optional
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
@@ -50,4 +51,36 @@ async def search_titles_partial(
             "results": media_results,
             "existing_entries": existing_entries,
         },
+    )
+
+
+@router.get("/info-modal/{tmdb_id}/{media_type}", response_class=HTMLResponse)
+async def get_title_info_modal(
+    request: Request,
+    tmdb_id: int,
+    media_type: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user),
+):
+    tmdb_data = await tmdb_service.get_formatted_details(tmdb_id, media_type)
+
+    existing_entry = None
+    if current_user:
+        stmt = select(WatchEntry).where(
+            WatchEntry.user_id == current_user.id,
+            WatchEntry.tmdb_id == tmdb_id
+        )
+        res = await db.execute(stmt)
+        existing_entry = res.scalar_one_or_none()
+
+    return templates.TemplateResponse(
+        request=request,
+        name="partials/title_info_modal.html",
+        context={
+            "tmdb_data": tmdb_data,
+            "tmdb_id": tmdb_id,
+            "media_type": media_type,
+            "existing_entry": existing_entry,
+            "current_user": current_user,
+        }
     )

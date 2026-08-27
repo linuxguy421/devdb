@@ -1,7 +1,10 @@
 {% if mutual_items %}
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {% for item in mutual_items %}
-        <div class="bg-neutral-900 border border-neutral-800/80 rounded-xl p-4 flex gap-4 hover:bg-neutral-800/70 transition group shadow-lg shadow-black/30">
+        <div hx-get="/titles/info-modal/{{ item.tmdb_data.id or item.tmdb_id }}/{{ item.tmdb_data.media_type or item.media_type }}"
+             hx-target="#modal-container"
+             hx-swap="innerHTML"
+             class="bg-neutral-900 border border-neutral-800/80 rounded-xl p-4 flex gap-4 hover:bg-neutral-800/70 hover:border-neutral-700 transition group shadow-lg shadow-black/30 cursor-pointer">
             <div class="w-16 h-24 bg-neutral-800 rounded-lg overflow-hidden shrink-0 border border-neutral-700/50">
                 {% if item.tmdb_data.poster_path %}
                     <img src="https://image.tmdb.org/t/p/w154{{ item.tmdb_data.poster_path }}" class="w-full h-full object-cover">
