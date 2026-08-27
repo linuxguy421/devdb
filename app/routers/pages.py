@@ -2,11 +2,11 @@ from typing import Optional
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.models import User, WatchEntry
+from app.models import Friendship, User, WatchEntry
 from app.routers.auth import get_current_user
 from app.services.tmdb import tmdb_service
 
@@ -27,10 +27,20 @@ async def home_page(
     except Exception:
         trending = []
 
+    stmt_pending_count = select(func.count(Friendship.id)).where(
+        Friendship.buddy_id == current_user.id,
+        Friendship.status == "pending"
+    )
+    pending_buddies_count = (await db.execute(stmt_pending_count)).scalar() or 0
+
     return templates.TemplateResponse(
         request=request,
         name="index.html",
-        context={"current_user": current_user, "trending": trending},
+        context={
+            "current_user": current_user,
+            "trending": trending,
+            "pending_buddies_count": pending_buddies_count,
+        },
     )
 
 @router.get("/login", response_class=HTMLResponse)

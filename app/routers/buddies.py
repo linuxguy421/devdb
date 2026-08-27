@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from typing import List
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
@@ -16,6 +17,17 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/buddies", tags=["buddies"])
 templates = Jinja2Templates(directory="app/templates")
+
+
+def format_buddies_text(usernames: List[str]) -> str:
+    """Formats a list of usernames into a natural English list string."""
+    if not usernames:
+        return ""
+    if len(usernames) == 1:
+        return f"{usernames[0]} wants to see this"
+    if len(usernames) == 2:
+        return f"{usernames[0]} and {usernames[1]} want to see this"
+    return f"{', '.join(usernames[:-1])}, and {usernames[-1]} want to see this"
 
 
 # --- Phase 1: Buddy Management & Search ---
@@ -44,12 +56,24 @@ async def buddy_modal(
     res_accepted = await db.execute(stmt_accepted)
     accepted_friendships = res_accepted.scalars().all()
 
+    buddy_ids = [
+        f.buddy_id if f.user_id == current_user.id else f.user_id
+        for f in accepted_friendships
+    ]
+
+    accepted_buddies = []
+    if buddy_ids:
+        stmt_buddies = select(User).where(User.id.in_(buddy_ids))
+        res_buddies = await db.execute(stmt_buddies)
+        accepted_buddies = res_buddies.scalars().all()
+
     return templates.TemplateResponse(
         request=request,
         name="partials/buddy_modal.html",
         context={
             "pending_requests": pending_requests,
-            "accepted_count": len(accepted_friendships),
+            "accepted_buddies": accepted_buddies,
+            "accepted_count": len(accepted_buddies),
         }
     )
 
@@ -141,6 +165,29 @@ async def respond_request(
     return HTMLResponse("")
 
 
+@router.delete("/remove/{buddy_id}", response_class=HTMLResponse)
+async def remove_buddy(
+    buddy_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    stmt = select(Friendship).where(
+        or_(
+            and_(Friendship.user_id == current_user.id, Friendship.buddy_id == buddy_id),
+            and_(Friendship.buddy_id == current_user.id, Friendship.user_id == buddy_id)
+        ),
+        Friendship.status == "accepted"
+    )
+    res = await db.execute(stmt)
+    friendship = res.scalars().first()
+
+    if friendship:
+        await db.delete(friendship)
+        await db.commit()
+
+    return HTMLResponse("")
+
+
 # --- Phase 2: Activity Feed Partial ---
 
 @router.get("/activity-partial", response_class=HTMLResponse)
@@ -160,7 +207,7 @@ async def buddy_activity_partial(
 
         if not buddy_ids:
             return templates.TemplateResponse(
-                request=request, name="partials/buddy_activity_feed.html", context={"activity_items": []}
+                request=request, name="partials/buddy_activity.html", context={"activity_items": []}
             )
 
         stmt_entries = (
@@ -206,7 +253,7 @@ async def buddy_activity_partial(
 
     return templates.TemplateResponse(
         request=request,
-        name="partials/buddy_activity_feed.html",
+        name="partials/buddy_activity.html",
         context={"activity_items": activity_items}
     )
 
@@ -239,26 +286,54 @@ async def get_mutual_watchlist(
     my_entries = (await db.execute(my_stmt)).scalars().all()
     my_keys = {(e.tmdb_id, e.media_type) for e in my_entries}
 
+    if not my_keys:
+        return templates.TemplateResponse(
+            request=request, name="partials/mutual_watchlist.html", context={"mutual_items": []}
+        )
+
     buddy_stmt = select(WatchEntry, User).join(User, WatchEntry.user_id == User.id).where(
         WatchEntry.user_id.in_(buddy_ids),
         WatchEntry.status == "to_watch"
     )
     results = (await db.execute(buddy_stmt)).all()
 
-    mutual_items = []
-    seen = set()
+    # Group buddy usernames by (tmdb_id, media_type)
+    grouped_matches = {}
     for entry, buddy in results:
         key = (entry.tmdb_id, entry.media_type)
-        if key in my_keys and key not in seen:
-            seen.add(key)
-            try:
-                tmdb_data = await asyncio.wait_for(
-                    tmdb_service.get_formatted_details(entry.tmdb_id, entry.media_type),
-                    timeout=2.0
-                )
-            except Exception:
-                tmdb_data = {"title": f"Media #{entry.tmdb_id}", "poster_path": entry.poster_path}
-            mutual_items.append({"tmdb_data": tmdb_data, "buddy": buddy})
+        if key in my_keys:
+            if key not in grouped_matches:
+                grouped_matches[key] = {
+                    "tmdb_id": entry.tmdb_id,
+                    "media_type": entry.media_type,
+                    "poster_path": entry.poster_path,
+                    "buddies": [],
+                }
+            if buddy.username not in grouped_matches[key]["buddies"]:
+                grouped_matches[key]["buddies"].append(buddy.username)
+
+    mutual_items = []
+    for key, data in grouped_matches.items():
+        tmdb_id, media_type = key
+        try:
+            tmdb_data = await asyncio.wait_for(
+                tmdb_service.get_formatted_details(tmdb_id, media_type),
+                timeout=2.0
+            )
+        except Exception:
+            tmdb_data = {
+                "title": f"Media #{tmdb_id}",
+                "poster_path": data["poster_path"],
+                "media_type": media_type,
+            }
+
+        buddies_text = format_buddies_text(data["buddies"])
+
+        mutual_items.append({
+            "tmdb_data": tmdb_data,
+            "buddies": data["buddies"],
+            "buddies_text": buddies_text,
+        })
 
     return templates.TemplateResponse(
         request=request, name="partials/mutual_watchlist.html", context={"mutual_items": mutual_items}

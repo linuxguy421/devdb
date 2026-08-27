@@ -4,7 +4,14 @@
         <!-- Header -->
         <div class="p-5 bg-neutral-900 border-b border-neutral-800 flex justify-between items-center">
             <div>
-                <h2 class="text-xl font-extrabold text-white">Add & Manage Buddies</h2>
+                <div class="flex items-center space-x-2">
+                    <h2 class="text-xl font-extrabold text-white">Add & Manage Buddies</h2>
+                    {% if pending_requests %}
+                    <span class="text-[10px] font-extrabold text-amber-950 bg-amber-400 px-2 py-0.5 rounded-full border border-amber-300">
+                        {{ pending_requests|length }} pending
+                    </span>
+                    {% endif %}
+                </div>
                 <p class="text-xs text-neutral-400">Search by username to connect</p>
             </div>
             <button onclick="document.getElementById('buddy-modal').remove()" class="text-neutral-400 hover:text-white p-1">
@@ -15,7 +22,7 @@
         </div>
 
         <div class="p-5 space-y-6 overflow-y-auto flex-1">
-            
+
             <!-- Incoming Requests (If Any) -->
             {% if pending_requests %}
             <div class="space-y-3 bg-neutral-950/50 p-3.5 rounded-xl border border-neutral-800/80">
@@ -23,12 +30,62 @@
                 <div class="space-y-2">
                     {% for req in pending_requests %}
                     <div id="pending-req-{{ req.id }}" class="flex items-center justify-between bg-neutral-900 p-2.5 rounded-lg border border-neutral-800">
-                        <span class="text-sm font-semibold text-white">{{ req.requester.username }}</span>
+                        <div class="flex items-center space-x-2.5">
+                            {% if req.requester.avatar_url %}
+                            <img src="{{ req.requester.avatar_url }}" alt="{{ req.requester.username }}" class="w-6 h-6 rounded-full object-cover border border-neutral-700">
+                            {% else %}
+                            <div class="w-6 h-6 rounded-full bg-emerald-500 flex items-center justify-center text-neutral-950 font-extrabold text-xs uppercase">
+                                {{ req.requester.username[0] }}
+                            </div>
+                            {% endif %}
+                            <span class="text-sm font-semibold text-white">{{ req.requester.username }}</span>
+                        </div>
                         <div class="flex space-x-2">
                             <form hx-post="/buddies/respond/{{ req.id }}" hx-target="#pending-req-{{ req.id }}" hx-swap="delete">
                                 <button type="submit" name="action" value="accept" class="text-xs font-bold bg-emerald-500 text-neutral-950 px-3 py-1 rounded-full hover:bg-emerald-400">Accept</button>
                                 <button type="submit" name="action" value="decline" class="text-xs font-semibold bg-neutral-800 text-neutral-300 px-3 py-1 rounded-full hover:bg-neutral-700">Decline</button>
                             </form>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Current Buddies List -->
+            {% if accepted_buddies %}
+            <div class="space-y-3 bg-neutral-950/50 p-3.5 rounded-xl border border-neutral-800/80">
+                <div class="flex justify-between items-center">
+                    <h3 class="text-xs font-bold uppercase tracking-wider text-emerald-400">Your Buddies</h3>
+                    <span class="text-[10px] font-extrabold text-neutral-400 bg-neutral-800 px-2 py-0.5 rounded-full border border-neutral-700/50">
+                        {{ accepted_count }}
+                    </span>
+                </div>
+                <div class="space-y-2 max-h-40 overflow-y-auto">
+                    {% for buddy in accepted_buddies %}
+                    <div id="buddy-item-{{ buddy.id }}" class="flex items-center justify-between bg-neutral-900 p-2.5 rounded-lg border border-neutral-800">
+                        <div class="flex items-center space-x-2.5">
+                            {% if buddy.avatar_url %}
+                            <img src="{{ buddy.avatar_url }}" alt="{{ buddy.username }}" class="w-6 h-6 rounded-full object-cover border border-neutral-700">
+                            {% else %}
+                            <div class="w-6 h-6 rounded-full bg-emerald-500 flex items-center justify-center text-neutral-950 font-extrabold text-xs uppercase">
+                                {{ buddy.username[0] }}
+                            </div>
+                            {% endif %}
+                            <span class="text-sm font-semibold text-white">{{ buddy.username }}</span>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <span class="text-xs font-semibold text-neutral-400 bg-neutral-800 px-2.5 py-1 rounded-full border border-neutral-700/40">Connected</span>
+                            <button hx-delete="/buddies/remove/{{ buddy.id }}"
+                                    hx-target="#buddy-item-{{ buddy.id }}"
+                                    hx-swap="delete"
+                                    hx-confirm="Remove {{ buddy.username }} from your buddies?"
+                                    class="text-neutral-500 hover:text-rose-400 hover:bg-neutral-800 p-1 rounded-lg transition-colors"
+                                    title="Remove Buddy">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                                </svg>
+                            </button>
                         </div>
                     </div>
                     {% endfor %}
