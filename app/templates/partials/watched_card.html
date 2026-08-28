@@ -1,4 +1,4 @@
-<div class="bg-neutral-900 border border-neutral-800/80 rounded-xl hover:bg-neutral-800/70 hover:border-neutral-700/60 transition-all duration-200 cursor-pointer flex overflow-hidden h-40 group shadow-lg shadow-black/30"
+<div class="bg-neutral-900 border border-neutral-800/80 rounded-xl hover:bg-neutral-800/70 hover:border-neutral-700/60 transition-all duration-200 cursor-pointer flex overflow-hidden min-h-[10rem] h-auto group shadow-lg shadow-black/30 relative"
      id="entry-{{ entry.id }}"
      hx-get="/watch-entries/{{ entry.id }}/edit-modal"
      hx-target="#modal-container"
@@ -14,10 +14,26 @@
     </div>
 
     <!-- Details -->
-    <div class="p-4 flex-1 flex flex-col justify-between overflow-hidden">
+    <div class="p-4 flex-1 flex flex-col justify-between overflow-hidden relative">
+        <button type="button"
+                hx-delete="/watch-entries/{{ entry.id }}"
+                hx-confirm="Remove '{{ entry.tmdb_data.title }}' from your watchlist?"
+                onclick="event.stopPropagation()"
+                title="Remove entry"
+                class="absolute top-3 right-3 opacity-0 group-hover:opacity-100 p-1 text-neutral-500 hover:text-rose-400 hover:bg-neutral-800 rounded-lg transition-all z-10 cursor-pointer">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+        </button>
+
         <div>
-            <div class="flex justify-between items-start gap-2">
-                <h3 class="font-bold text-base text-white truncate group-hover:text-emerald-400 transition-colors">{{ entry.tmdb_data.title }}</h3>
+            <div class="flex justify-between items-start gap-2 pr-6">
+                <h3 class="font-bold text-base text-white leading-snug group-hover:text-emerald-400 transition-colors">
+                    {{ entry.tmdb_data.title }}
+                    {% if entry.tmdb_data.year %}
+                        <span class="text-xs font-normal text-neutral-400">({{ entry.tmdb_data.year }})</span>
+                    {% endif %}
+                </h3>
                 <span class="bg-yellow-500/10 text-yellow-400 text-[11px] font-bold px-2 py-0.5 rounded border border-yellow-500/20 shrink-0">
                     IMDb {{ entry.tmdb_data.imdb_rating }}
                 </span>
@@ -25,21 +41,34 @@
             <p class="text-xs text-neutral-400 mt-1">
                 <span class="font-semibold text-neutral-300">Dir:</span> {{ entry.tmdb_data.director }}
             </p>
-            <p class="text-xs text-neutral-400 truncate mt-0.5">
+            <p class="text-xs text-neutral-400 mt-0.5">
                 <span class="font-semibold text-neutral-300">Cast:</span> {{ entry.tmdb_data.actors }}
             </p>
         </div>
 
-        <!-- User Stats -->
-        <div class="flex items-center space-x-3 mt-2 pt-2 border-t border-neutral-800/60 text-xs">
-            {% if entry.rating %}
-                <span class="font-bold text-emerald-400 bg-emerald-950/40 px-2 py-0.5 rounded border border-emerald-800/40">★ {{ entry.rating }}/10</span>
-            {% else %}
-                <span class="font-medium text-neutral-500 italic">Unrated</span>
-            {% endif %}
+        <!-- User Stats & Notes -->
+        <div class="flex flex-col gap-1.5 mt-3 pt-2 border-t border-neutral-800/60 text-xs">
+            <div class="flex items-center space-x-2">
+                {% if entry.rating %}
+                    <span class="font-bold text-emerald-400 bg-emerald-950/40 px-2 py-0.5 rounded border border-emerald-800/40">★ {{ entry.rating }}/10</span>
+                {% else %}
+                    <span class="font-medium text-neutral-500 italic">Unrated</span>
+                {% endif %}
+
+                {% if entry.is_private %}
+                    <span class="bg-neutral-800 text-amber-400 border border-neutral-700/80 text-[10px] font-bold px-1.5 py-0.5 rounded not-italic flex items-center gap-1">
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                        </svg>
+                        Private
+                    </span>
+                {% endif %}
+            </div>
 
             {% if entry.notes %}
-                <span class="text-neutral-400 truncate italic flex-1">"{{ entry.notes }}"</span>
+                <p class="text-neutral-300 italic text-xs leading-relaxed break-words bg-neutral-950/30 p-2 rounded border border-neutral-800/50 mt-1">
+                    "{{ entry.notes }}"
+                </p>
             {% endif %}
         </div>
     </div>

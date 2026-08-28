@@ -44,7 +44,7 @@ async def create_watch_entry(
         return HTMLResponse(content='<div id="modal-container" hx-swap-oob="true"></div>')
 
     return templates.TemplateResponse(
-        request=request, name="partials/watch_button.html", context={"entry": entry, "tmdb_id": tmdb_id}
+        request=request, name="partials/watch_button.html", context={"entry": entry, "tmdb_id": tmdb_id, "media_type": media_type}
     )
 
 
@@ -77,6 +77,7 @@ async def update_watch_entry(
     entry_id: int,
     rating: Optional[str] = Form(None),
     notes: Optional[str] = Form(None),
+    is_private: Optional[str] = Form(None),
     status_val: Optional[str] = Form(None),
     db: AsyncSession = Depends(get_db),
     current_user: Optional[User] = Depends(get_current_user),
@@ -96,6 +97,9 @@ async def update_watch_entry(
 
     if notes is not None:
         entry.notes = notes
+
+    entry.is_private = True if is_private else False
+
     if status_val is not None:
         entry.status = status_val
 
@@ -104,10 +108,20 @@ async def update_watch_entry(
 
     entry.tmdb_data = await tmdb_service.get_formatted_details(entry.tmdb_id, entry.media_type)
 
+    # 1. Primary target response (for Watchlist grid)
     card_html = templates.get_template("partials/watched_card.html").render({"request": request, "entry": entry})
     oob_close_modal = '<div id="modal-container" hx-swap-oob="true"></div>'
 
-    return HTMLResponse(content=card_html + oob_close_modal)
+    # 2. OOB swap for Search grid watch button container
+    btn_html = templates.get_template("partials/watch_button.html").render({
+        "request": request,
+        "entry": entry,
+        "tmdb_id": entry.tmdb_id,
+        "media_type": entry.media_type
+    })
+    oob_btn_swap = btn_html.replace(f'id="watch-btn-{entry.tmdb_id}"', f'id="watch-btn-{entry.tmdb_id}" hx-swap-oob="true"')
+
+    return HTMLResponse(content=card_html + oob_close_modal + oob_btn_swap)
 
 
 @router.post("/{entry_id}/quick-watched", response_class=HTMLResponse)
@@ -129,3 +143,39 @@ async def quick_mark_watched(
     await db.commit()
 
     return HTMLResponse(content="")
+
+
+@router.delete("/{entry_id}", response_class=HTMLResponse)
+async def delete_watch_entry(
+    request: Request,
+    entry_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user),
+):
+    if not current_user:
+        return HTMLResponse(status_code=status.HTTP_401_UNAUTHORIZED, headers={"HX-Redirect": "/login"})
+
+    stmt = select(WatchEntry).where(WatchEntry.id == entry_id, WatchEntry.user_id == current_user.id)
+    entry = (await db.execute(stmt)).scalar_one_or_none()
+
+    if not entry:
+        raise HTTPException(status_code=404, detail="Watch entry not found")
+
+    tmdb_id = entry.tmdb_id
+    media_type = entry.media_type
+
+    await db.delete(entry)
+    await db.commit()
+
+    card_oob_delete = f'<div id="entry-{entry_id}" hx-swap-oob="delete"></div>'
+    modal_oob_close = '<div id="modal-container" hx-swap-oob="true"></div>'
+
+    watch_btn_content = templates.get_template("partials/watch_button.html").render({
+        "request": request,
+        "entry": None,
+        "tmdb_id": tmdb_id,
+        "media_type": media_type,
+    })
+    watch_btn_oob = watch_btn_content.replace(f'id="watch-btn-{tmdb_id}"', f'id="watch-btn-{tmdb_id}" hx-swap-oob="true"')
+
+    return HTMLResponse(content=card_oob_delete + modal_oob_close + watch_btn_oob)

@@ -1,15 +1,62 @@
-<div class="flex items-center space-x-1 px-3 py-1.5 rounded border shadow-sm inline-block
-    {% if entry.status == 'watched' %} bg-blue-50 text-blue-700 border-blue-200 
-    {% else %} bg-gray-50 text-gray-700 border-gray-200 {% endif %}">
-    
-    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-        <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
-    </svg>
-    <span class="text-sm font-medium">
-        {% if entry.status == 'watched' %}
-            Added to Watched
-        {% else %}
-            Added to Watchlist
+<div id="watch-btn-{{ tmdb_id if tmdb_id else (entry.tmdb_id if entry else '') }}" class="mt-2">
+    {% if entry and entry.status == 'watched' %}
+        <button type="button"
+                hx-get="/watch-entries/{{ entry.id }}/edit-modal"
+                hx-target="#modal-container"
+                hx-swap="innerHTML"
+                class="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-400 bg-emerald-950/50 px-3 py-1 rounded-full border border-emerald-800/40 hover:bg-emerald-900/60 transition-all cursor-pointer">
+            <span>✓ Watched</span>
+            {% if entry.rating %}
+                <span class="rating-star text-yellow-400 border-l border-emerald-800/60 pl-1.5">★ {{ entry.rating }}/10</span>
+            {% endif %}
+        </button>
+
+        {% if entry.rating is none and entry.notes is none %}
+            <div hx-get="/watch-entries/{{ entry.id }}/edit-modal"
+                 hx-target="#modal-container"
+                 hx-swap="innerHTML"
+                 hx-trigger="load"></div>
         {% endif %}
-    </span>
+
+    {% elif entry and entry.status == 'to_watch' %}
+        <div class="flex items-center gap-2">
+            <div class="inline-flex items-center gap-1.5 text-xs font-bold text-sky-400 bg-sky-950/50 px-3 py-1 rounded-full border border-sky-800/40">
+                <span>✓ Want to Watch</span>
+                <button type="button"
+                        hx-delete="/watch-entries/{{ entry.id }}"
+                        hx-confirm="Remove from Watchlist?"
+                        title="Remove from Watchlist"
+                        class="ml-1 text-sky-400/60 hover:text-rose-400 font-bold transition-colors cursor-pointer">
+                    ✕
+                </button>
+            </div>
+            <button type="button"
+                    hx-get="/watch-entries/{{ entry.id }}/edit-modal"
+                    hx-target="#modal-container"
+                    hx-swap="innerHTML"
+                    class="text-xs font-extrabold bg-emerald-500 text-neutral-950 hover:bg-emerald-400 px-3 py-1 rounded-full shadow-md shadow-emerald-950/40 transition-all cursor-pointer">
+                I've seen it
+            </button>
+        </div>
+
+    {% else %}
+        <!-- Un-added / Deleted Fallback: Dual Buttons -->
+        <form hx-post="/watch-entries" 
+              hx-target="#watch-btn-{{ tmdb_id if tmdb_id else (entry.tmdb_id if entry else '') }}" 
+              hx-swap="outerHTML">
+            <input type="hidden" name="tmdb_id" value="{{ tmdb_id if tmdb_id else (entry.tmdb_id if entry else '') }}">
+            <input type="hidden" name="media_type" value="{{ media_type if media_type else (entry.media_type if entry else 'movie') }}">
+
+            <div class="flex space-x-2">
+                <button type="submit" name="status_val" value="watched" 
+                        class="flex-1 text-xs font-extrabold bg-emerald-500 text-neutral-950 hover:bg-emerald-400 px-3 py-1.5 rounded-full shadow-md shadow-emerald-950/40 transition-all text-center cursor-pointer">
+                    I've seen it
+                </button>
+                <button type="submit" name="status_val" value="to_watch" 
+                        class="flex-1 text-xs font-semibold bg-neutral-800 text-neutral-200 hover:bg-neutral-700 hover:text-white px-3 py-1.5 rounded-full border border-neutral-700/60 transition-all text-center cursor-pointer">
+                    Want to see
+                </button>
+            </div>
+        </form>
+    {% endif %}
 </div>

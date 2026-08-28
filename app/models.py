@@ -5,6 +5,7 @@ from sqlalchemy.orm import relationship, Mapped, mapped_column
 from sqlalchemy.sql import func
 from app.database import Base
 
+
 class Friendship(Base):
     __tablename__ = 'friendships'
 
@@ -21,6 +22,7 @@ class Friendship(Base):
     __table_args__ = (
         UniqueConstraint('user_id', 'buddy_id', name='unique_user_buddy_pair'),
     )
+
 
 class User(Base):
     __tablename__ = "users"
@@ -48,9 +50,11 @@ class WatchEntry(Base):
     status = Column(String, nullable=False, default="plan_to_watch")
     rating = Column(Integer, nullable=True)
     notes = Column(String, nullable=True)
+    is_private = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     user = relationship("User", back_populates="watch_entries")
+
 
 class Recommendation(Base):
     __tablename__ = "recommendations"

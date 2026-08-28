@@ -1,12 +1,26 @@
-<!-- app/templates/partials/search_results.html -->
-<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4 col-span-full">
+<div class="col-span-full mb-2 flex items-center justify-between border-b border-neutral-800/80 pb-3">
+    <div class="flex items-center space-x-2">
+        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+        <h2 class="text-base font-bold text-white tracking-tight">
+            {{ active_label or "Search & Discovery Results" }}
+        </h2>
+    </div>
+    <span class="text-xs font-semibold text-neutral-400 bg-neutral-900 border border-neutral-800 px-2.5 py-1 rounded-full">
+        {{ results|length }} titles
+    </span>
+</div>
+
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 col-span-full">
     {% for item in results %}
         {% set existing = existing_entries.get(item.id) %}
+        {% set release_date = item.release_date or item.first_air_date or '' %}
+        {% set release_year = release_date[:4] if release_date else '' %}
+
         <div class="bg-neutral-900 border border-neutral-800/80 rounded-xl hover:bg-neutral-800/70 hover:border-neutral-700/60 transition-all duration-200 p-4 flex gap-4 shadow-lg shadow-black/30 group">
 
             <!-- Clickable Poster -->
             <div class="cursor-pointer shrink-0 rounded-lg overflow-hidden bg-neutral-800 border border-neutral-700/50"
-                 hx-get="/titles/{{ item.id }}/info"
+                 hx-get="/titles/info-modal/{{ item.id }}/{{ item.media_type }}"
                  hx-target="#modal-container"
                  hx-swap="innerHTML">
                 {% if item.poster_path %}
@@ -18,37 +32,60 @@
 
             <div class="flex-1 flex flex-col justify-between overflow-hidden">
                 <div>
-                    <!-- Clickable Title -->
+                    <!-- Clickable Title with Release Year -->
                     <div class="cursor-pointer group-hover:text-emerald-400 transition-colors inline-block max-w-full"
-                         hx-get="/titles/{{ item.id }}/info"
+                         hx-get="/titles/info-modal/{{ item.id }}/{{ item.media_type }}"
                          hx-target="#modal-container"
                          hx-swap="innerHTML">
-                        <h3 class="font-bold text-base text-white leading-tight truncate">{{ item.title or item.name }}</h3>
+                        <h3 class="font-bold text-base text-white leading-tight">
+                            {{ item.title or item.name }}
+                            {% if release_year %}
+                                <span class="text-xs font-normal text-neutral-400 ml-1">({{ release_year }})</span>
+                            {% endif %}
+                        </h3>
                     </div>
-                    <span class="block w-max text-[10px] uppercase font-bold tracking-wider bg-neutral-800 text-neutral-400 px-2 py-0.5 rounded-full border border-neutral-700/50 mt-1">
+                    <span class="block w-max text-[10px] uppercase font-bold tracking-wider bg-neutral-800 text-neutral-400 px-2 py-0.5 rounded-full border border-neutral-700/50 mt-1.5">
                         {{ item.media_type }}
                     </span>
                 </div>
 
                 <div id="watch-btn-{{ item.id }}" class="mt-3">
                     {% if existing %}
-                        <div class="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-400 bg-emerald-950/50 px-3 py-1 rounded-full border border-emerald-800/40">
-                            <span>✓ {{ existing.status.replace('_', ' ').title() }}</span>
-                            {% if existing.rating %}
-                                <span class="text-yellow-400 border-l border-emerald-800/60 pl-1.5">★ {{ existing.rating }}/10</span>
-                            {% endif %}
-                        </div>
+                        {% if existing.status == 'watched' %}
+                            <button type="button"
+                                    hx-get="/watch-entries/{{ existing.id }}/edit-modal"
+                                    hx-target="#modal-container"
+                                    hx-swap="innerHTML"
+                                    class="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-400 bg-emerald-950/50 px-3 py-1 rounded-full border border-emerald-800/40 hover:bg-emerald-900/60 transition-all cursor-pointer">
+                                <span>✓ Watched</span>
+                                {% if existing.rating %}
+                                    <span class="text-yellow-400 border-l border-emerald-800/60 pl-1.5">★ {{ existing.rating }}/10</span>
+                                {% endif %}
+                            </button>
+                        {% else %}
+                            <div class="flex items-center gap-2">
+                                <div class="inline-flex items-center gap-1.5 text-xs font-bold text-sky-400 bg-sky-950/50 px-3 py-1 rounded-full border border-sky-800/40">
+                                    <span>✓ Want to Watch</span>
+                                </div>
+                                <button type="button"
+                                        hx-get="/watch-entries/{{ existing.id }}/edit-modal"
+                                        hx-target="#modal-container"
+                                        hx-swap="innerHTML"
+                                        class="text-xs font-extrabold bg-emerald-500 text-neutral-950 hover:bg-emerald-400 px-3 py-1 rounded-full shadow-md shadow-emerald-950/40 transition-all cursor-pointer">
+                                    I've seen it
+                                </button>
+                            </div>
+                        {% endif %}
                     {% else %}
-                        <!-- Dual Button Form -->
                         <form hx-post="/watch-entries" hx-target="#watch-btn-{{ item.id }}" hx-swap="outerHTML">
                             <input type="hidden" name="tmdb_id" value="{{ item.id }}">
                             <input type="hidden" name="media_type" value="{{ item.media_type }}">
 
                             <div class="flex space-x-2 mt-2">
-                                <button type="submit" name="status_val" value="watched" class="flex-1 text-xs font-extrabold bg-emerald-500 text-neutral-950 hover:bg-emerald-400 px-3 py-1.5 rounded-full shadow-md shadow-emerald-950/40 transition-all text-center">
+                                <button type="submit" name="status_val" value="watched" class="flex-1 text-xs font-extrabold bg-emerald-500 text-neutral-950 hover:bg-emerald-400 px-3 py-1.5 rounded-full shadow-md shadow-emerald-950/40 transition-all text-center cursor-pointer">
                                     I've seen it
                                 </button>
-                                <button type="submit" name="status_val" value="to_watch" class="flex-1 text-xs font-semibold bg-neutral-800 text-neutral-200 hover:bg-neutral-700 hover:text-white px-3 py-1.5 rounded-full border border-neutral-700/60 transition-all text-center">
+                                <button type="submit" name="status_val" value="to_watch" class="flex-1 text-xs font-semibold bg-neutral-800 text-neutral-200 hover:bg-neutral-700 hover:text-white px-3 py-1.5 rounded-full border border-neutral-700/60 transition-all text-center cursor-pointer">
                                     Want to see
                                 </button>
                             </div>
@@ -59,7 +96,7 @@
         </div>
     {% else %}
         <div class="col-span-full py-12 text-center bg-neutral-900/40 border border-dashed border-neutral-800 rounded-2xl">
-            <p class="text-neutral-400 text-sm font-medium">No titles found matching your search.</p>
+            <p class="text-neutral-400 text-sm font-medium">No titles found matching your filter or search criteria.</p>
         </div>
     {% endfor %}
 </div>

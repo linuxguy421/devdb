@@ -28,7 +28,7 @@
         {% endif %}
     </div>
 
-    {% if item.entry.rating or item.entry.notes %}
+    {% if item.entry.rating or (item.entry.notes and not item.entry.is_private) %}
     <div class="space-y-1.5 pt-2 border-t border-neutral-800/60 text-xs">
         {% if item.entry.rating %}
         <div class="flex items-center space-x-1 text-amber-400 font-bold">
@@ -38,7 +38,7 @@
             <span>{{ item.entry.rating }}/10</span>
         </div>
         {% endif %}
-        {% if item.entry.notes %}
+        {% if item.entry.notes and not item.entry.is_private %}
         <p class="text-neutral-300 italic bg-neutral-950/60 p-2 rounded-lg border border-neutral-800/80 text-[11px] leading-relaxed break-words">
             "{{ item.entry.notes }}"
         </p>

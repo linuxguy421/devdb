@@ -45,19 +45,20 @@
         </div>
     </nav>
 
-    <main class="flex-1 max-w-7xl w-full mx-auto px-6 py-8 space-y-10">
+    <main class="flex-1 max-w-7xl w-full mx-auto px-6 py-8 space-y-8">
+        <!-- Search & Filter Controls -->
         <section class="space-y-4">
-            <div class="flex justify-between items-end">
-                <div>
-                    <h1 class="text-3xl font-extrabold text-white tracking-tight">
-                        {% if current_user %}Welcome back, {{ current_user.username }}{% else %}Discover & Track Movies{% endif %}
-                    </h1>
-                    <p class="text-sm text-neutral-400 mt-1">Search TMDB to add movies or TV shows to your database.</p>
-                </div>
+            <div>
+                <h1 class="text-3xl font-extrabold text-white tracking-tight">
+                    {% if current_user %}Welcome back, {{ current_user.username }}{% else %}Discover & Track Movies{% endif %}
+                </h1>
+                <p class="text-sm text-neutral-400 mt-1">Search TMDB directly or combine filters to explore specific genres and eras.</p>
             </div>
 
+            <!-- Search Bar -->
             <div class="relative">
                 <input type="text"
+                       id="search-input"
                        name="q"
                        placeholder="Search movies or TV shows..."
                        hx-get="/titles/search-partial"
@@ -68,9 +69,84 @@
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
                 </svg>
             </div>
+
+            <!-- Filter Controls -->
+            <form id="filter-form"
+                  hx-get="/titles/browse-partial"
+                  hx-target="#search-results"
+                  hx-trigger="change"
+                  class="bg-neutral-900/80 border border-neutral-800 p-3.5 rounded-2xl flex flex-wrap gap-3 items-center text-xs">
+                
+                <span class="text-neutral-400 font-bold uppercase tracking-wider text-[11px] pr-1">Filter By:</span>
+
+                <!-- Type -->
+                <select name="media_type" 
+                        onclick="document.getElementById('search-input').value=''"
+                        class="bg-neutral-800 border border-neutral-700/70 text-neutral-200 rounded-lg px-3 py-1.5 focus:border-emerald-500 outline-none cursor-pointer">
+                    <option value="movie">Movies</option>
+                    <option value="tv">TV Series</option>
+                </select>
+
+                <!-- Genre -->
+                <select name="genre_id" 
+                        onclick="document.getElementById('search-input').value=''"
+                        class="bg-neutral-800 border border-neutral-700/70 text-neutral-200 rounded-lg px-3 py-1.5 focus:border-emerald-500 outline-none cursor-pointer">
+                    <option value="">All Genres</option>
+                    <option value="28">Action</option>
+                    <option value="12">Adventure</option>
+                    <option value="16">Animation</option>
+                    <option value="35">Comedy</option>
+                    <option value="80">Crime</option>
+                    <option value="99">Documentary</option>
+                    <option value="18">Drama</option>
+                    <option value="14">Fantasy</option>
+                    <option value="27">Horror</option>
+                    <option value="9648">Mystery</option>
+                    <option value="10749">Romance</option>
+                    <option value="878">Sci-Fi</option>
+                    <option value="53">Thriller</option>
+                </select>
+
+                <!-- Year / Era -->
+                <select name="year_filter" 
+                        onclick="document.getElementById('search-input').value=''"
+                        class="bg-neutral-800 border border-neutral-700/70 text-neutral-200 rounded-lg px-3 py-1.5 focus:border-emerald-500 outline-none cursor-pointer">
+                    <option value="">All Time</option>
+                    <optgroup label="Decades">
+                        <option value="decade_2020s">2020s</option>
+                        <option value="decade_2010s">2010s</option>
+                        <option value="decade_2000s">2000s</option>
+                        <option value="decade_1990s">1990s</option>
+                        <option value="decade_1980s">1980s</option>
+                        <option value="decade_1970s">1970s</option>
+                        <option value="decade_1960s">1960s</option>
+                        <option value="decade_1950s">1950s</option>
+                    </optgroup>
+                    <optgroup label="Specific Year">
+                        {% for y in range(2026, 1887, -1) %}
+                            <option value="{{ y }}">{{ y }}</option>
+                        {% endfor %}
+                    </optgroup>
+                </select>
+
+                <!-- Sort Order -->
+                <select name="sort_by" 
+                        onclick="document.getElementById('search-input').value=''"
+                        class="bg-neutral-800 border border-neutral-700/70 text-neutral-200 rounded-lg px-3 py-1.5 focus:border-emerald-500 outline-none cursor-pointer">
+                    <option value="popularity.desc">Most Popular</option>
+                    <option value="vote_average.desc">Top Rated</option>
+                    <option value="primary_release_date.desc">Release Date (Newest)</option>
+                    <option value="primary_release_date.asc">Release Date (Oldest)</option>
+                </select>
+            </form>
         </section>
 
-        <section id="search-results" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></section>
+        <!-- Dynamic Results Grid -->
+        <section id="search-results"
+                 hx-get="/titles/browse-partial?media_type=movie&sort_by=popularity.desc"
+                 hx-trigger="load"
+                 class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        </section>
 
         <!-- Buddy Activity Feed -->
         <section class="space-y-4 pt-4 border-t border-neutral-800/60">
@@ -132,42 +208,6 @@
                 </div>
             {% endif %}
         </section>
-
-        <!-- Dynamic Trending Section -->
-        <section class="space-y-4 pt-4 border-t border-neutral-800/60">
-            <div class="flex justify-between items-center">
-                <div class="flex items-center space-x-2">
-                    <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/>
-                    </svg>
-                    <h2 class="text-xl font-bold text-white tracking-tight">Trending This Week</h2>
-                </div>
-            </div>
-
-            {% if trending %}
-                <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                    {% for item in trending %}
-                    <div class="bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden hover:border-neutral-700 transition">
-                        <img src="{{ item.poster_url }}" alt="{{ item.title }}" class="w-full h-52 object-cover">
-                        <div class="p-2.5">
-                            <p class="text-xs font-bold text-white truncate">{{ item.title }}</p>
-                        </div>
-                    </div>
-                    {% endfor %}
-                </div>
-            {% else %}
-                <div class="p-6 text-center bg-neutral-900/40 border border-neutral-800/80 rounded-2xl flex flex-col items-center justify-center space-y-2">
-                    <div class="p-2.5 bg-neutral-800/60 rounded-full text-neutral-400">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
-                        </svg>
-                    </div>
-                    <p class="text-sm font-semibold text-neutral-200">Trending Data Unavailable</p>
-                    <p class="text-xs text-neutral-400 max-w-md">Unable to fetch weekly trending titles right now. Please check your TMDB configuration or retry later.</p>
-                </div>
-            {% endif %}
-        </section>
-
     </main>
 
     <div id="modal-container"></div>
