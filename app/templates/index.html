@@ -16,22 +16,24 @@
                     <img src="/static/img/logo.png" alt="Logo" class="h-8 w-auto object-contain">
                 </a>
                 <div class="flex items-center space-x-2 text-sm font-semibold">
-                    <a href="/" class="px-4 py-1.5 rounded-full bg-neutral-800 text-white border border-neutral-700/50 shadow-sm transition-all duration-200">Search</a>
+                    <a href="/" class="px-4 py-1.5 rounded-full bg-neutral-800 text-white border border-neutral-700/50 shadow-sm transition-all duration-200">Home</a>
                     <a href="/to-watch" class="px-4 py-1.5 rounded-full {% if request.url.path == '/to-watch' %}bg-neutral-800 text-white border border-neutral-700/50 shadow-sm{% else %}text-neutral-400 hover:text-white hover:bg-neutral-800/60{% endif %} transition-all duration-200">Want To Watch</a>
                     <a href="/watched" class="px-4 py-1.5 rounded-full text-neutral-400 hover:text-white hover:bg-neutral-800/60 transition-all duration-200">Watched</a>
                 </div>
             </div>
             <div class="flex items-center space-x-4">
                 {% if current_user %}
-                    <button hx-get="/profile/modal"
+                    <button type="button"
+                            hx-get="/profile/edit-modal"
                             hx-target="#modal-container"
                             hx-swap="innerHTML"
-                            class="flex items-center space-x-3 bg-neutral-900/80 hover:bg-neutral-800 border border-neutral-800 hover:border-neutral-700 rounded-full px-3.5 py-1.5 transition cursor-pointer">
+                            class="flex items-center space-x-3 bg-neutral-900/80 hover:bg-neutral-800 border border-neutral-800 hover:border-neutral-700 rounded-full px-3.5 py-1.5 transition cursor-pointer"
+                            title="Edit Profile">
                         {% if current_user.avatar_url %}
-                        <img src="{{ current_user.avatar_url }}" alt="{{ current_user.username }}" class="w-6 h-6 rounded-full object-cover">
+                        <img src="{{ current_user.avatar_url }}" alt="{{ current_user.username }}" class="w-6 h-6 rounded-full object-cover border border-emerald-500/60">
                         {% else %}
                         <div class="w-6 h-6 rounded-full bg-emerald-500 flex items-center justify-center text-neutral-950 font-extrabold text-xs uppercase">
-                            {{ current_user.username[0] }}
+                            {{ current_user.username[0] if current_user.username else 'U' }}
                         </div>
                         {% endif %}
                         <span class="text-xs font-semibold text-neutral-300 hover:text-white transition">{{ current_user.username }}</span>
@@ -72,24 +74,23 @@
 
             <!-- Filter Controls -->
             <form id="filter-form"
-                  hx-get="/titles/browse-partial"
+                  hx-get="/titles/search-partial"
+                  hx-include="#search-input"
                   hx-target="#search-results"
-                  hx-trigger="change"
                   class="bg-neutral-900/80 border border-neutral-800 p-3.5 rounded-2xl flex flex-wrap gap-3 items-center text-xs">
-                
+
                 <span class="text-neutral-400 font-bold uppercase tracking-wider text-[11px] pr-1">Filter By:</span>
 
                 <!-- Type -->
-                <select name="media_type" 
-                        onclick="document.getElementById('search-input').value=''"
+                <select name="media_type"
                         class="bg-neutral-800 border border-neutral-700/70 text-neutral-200 rounded-lg px-3 py-1.5 focus:border-emerald-500 outline-none cursor-pointer">
+                    <option value="">All Types</option>
                     <option value="movie">Movies</option>
                     <option value="tv">TV Series</option>
                 </select>
 
                 <!-- Genre -->
-                <select name="genre_id" 
-                        onclick="document.getElementById('search-input').value=''"
+                <select name="genre_id"
                         class="bg-neutral-800 border border-neutral-700/70 text-neutral-200 rounded-lg px-3 py-1.5 focus:border-emerald-500 outline-none cursor-pointer">
                     <option value="">All Genres</option>
                     <option value="28">Action</option>
@@ -108,8 +109,7 @@
                 </select>
 
                 <!-- Year / Era -->
-                <select name="year_filter" 
-                        onclick="document.getElementById('search-input').value=''"
+                <select name="year_filter"
                         class="bg-neutral-800 border border-neutral-700/70 text-neutral-200 rounded-lg px-3 py-1.5 focus:border-emerald-500 outline-none cursor-pointer">
                     <option value="">All Time</option>
                     <optgroup label="Decades">
@@ -130,14 +130,19 @@
                 </select>
 
                 <!-- Sort Order -->
-                <select name="sort_by" 
-                        onclick="document.getElementById('search-input').value=''"
+                <select name="sort_by"
                         class="bg-neutral-800 border border-neutral-700/70 text-neutral-200 rounded-lg px-3 py-1.5 focus:border-emerald-500 outline-none cursor-pointer">
                     <option value="popularity.desc">Most Popular</option>
                     <option value="vote_average.desc">Top Rated</option>
                     <option value="primary_release_date.desc">Release Date (Newest)</option>
                     <option value="primary_release_date.asc">Release Date (Oldest)</option>
                 </select>
+
+                <!-- Apply To Search Button -->
+                <button type="submit"
+                        class="ml-auto bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-bold px-4 py-1.5 rounded-lg transition-all shadow-md shadow-emerald-950/40 cursor-pointer">
+                    Apply To Search
+                </button>
             </form>
         </section>
 

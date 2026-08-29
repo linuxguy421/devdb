@@ -44,7 +44,7 @@ SORT_MAP = {
 
 
 def construct_browse_label(media_type: str, sort_by: str, genre_id: Optional[int], year_filter: Optional[str]) -> str:
-    type_str = "TV Series" if media_type == "tv" else "Movies"
+    type_str = "TV Series" if media_type == "tv" else ("Movies" if media_type == "movie" else "Titles")
     sort_str = SORT_MAP.get(sort_by, "Popular")
     genre_str = GENRE_MAP.get(genre_id, "") if genre_id else ""
 
@@ -62,26 +62,30 @@ def construct_browse_label(media_type: str, sort_by: str, genre_id: Optional[int
 @router.get("/browse-partial", response_class=HTMLResponse)
 async def browse_titles_partial(
     request: Request,
-    media_type: str = "movie",
-    sort_by: str = "popularity.desc",
-    genre_id: Optional[int] = None,
+    media_type: Optional[str] = "movie",
+    sort_by: Optional[str] = "popularity.desc",
+    genre_id: Optional[str] = None,
     year_filter: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
     current_user: Optional[User] = Depends(get_current_user),
 ):
-    # Map sorting key depending on media type
-    if media_type == "tv":
-        if "primary_release_date" in sort_by:
-            sort_by = sort_by.replace("primary_release_date", "first_air_date")
+    target_media = media_type if media_type in ("movie", "tv") else "movie"
+    sort_key = sort_by if sort_by else "popularity.desc"
+    parsed_genre_id = int(genre_id) if genre_id and genre_id.isdigit() else None
+    year_val = year_filter if year_filter else None
+
+    if target_media == "tv":
+        if "primary_release_date" in sort_key:
+            sort_key = sort_key.replace("primary_release_date", "first_air_date")
     else:
-        if "first_air_date" in sort_by:
-            sort_by = sort_by.replace("first_air_date", "primary_release_date")
+        if "first_air_date" in sort_key:
+            sort_key = sort_key.replace("first_air_date", "primary_release_date")
 
     data = await tmdb_service.discover_titles(
-        media_type=media_type,
-        sort_by=sort_by,
-        genre_id=genre_id,
-        year_filter=year_filter,
+        media_type=target_media,
+        sort_by=sort_key,
+        genre_id=parsed_genre_id,
+        year_filter=year_val,
     )
     results = data.get("results", [])
 
@@ -97,7 +101,7 @@ async def browse_titles_partial(
         entries = db_res.scalars().all()
         existing_entries = {entry.tmdb_id: entry for entry in entries}
 
-    active_label = construct_browse_label(media_type, sort_by, genre_id, year_filter)
+    active_label = construct_browse_label(target_media, sort_key, parsed_genre_id, year_val)
 
     return templates.TemplateResponse(
         request=request,
@@ -114,21 +118,65 @@ async def browse_titles_partial(
 async def search_titles_partial(
     request: Request,
     q: str = "",
+    media_type: Optional[str] = None,
+    genre_id: Optional[str] = None,
+    year_filter: Optional[str] = None,
+    sort_by: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
     current_user: Optional[User] = Depends(get_current_user),
 ):
-    if not q.strip():
+    query_str = q.strip()
+    parsed_genre_id = int(genre_id) if genre_id and genre_id.isdigit() else None
+    year_val = year_filter if year_filter else None
+    sort_key = sort_by if sort_by else "popularity.desc"
+    media_val = media_type if media_type in ("movie", "tv") else None
+
+    if not query_str:
         return await browse_titles_partial(
             request=request,
-            media_type="movie",
-            sort_by="popularity.desc",
+            media_type=media_val or "movie",
+            sort_by=sort_key,
+            genre_id=genre_id,
+            year_filter=year_val,
             db=db,
             current_user=current_user,
         )
 
-    data = await tmdb_service.search_multi(query=q)
+    data = await tmdb_service.search_multi(query=query_str)
     results = data.get("results", [])
     media_results = [r for r in results if r.get("media_type") in ("movie", "tv")]
+
+    # Filter by media_type (movie/tv)
+    if media_val:
+        media_results = [r for r in media_results if r.get("media_type") == media_val]
+
+    # Filter by genre_id
+    if parsed_genre_id:
+        media_results = [r for r in media_results if parsed_genre_id in r.get("genre_ids", [])]
+
+    # Filter by release year or decade
+    if year_val:
+        def matches_year(item):
+            date_str = item.get("release_date") or item.get("first_air_date") or ""
+            if not date_str or len(date_str) < 4:
+                return False
+            yr = date_str[:4]
+            if year_val.startswith("decade_"):
+                dec = int(year_val.replace("decade_", "").replace("s", ""))
+                return yr.isdigit() and dec <= int(yr) <= dec + 9
+            elif year_val.isdigit():
+                return yr == year_val
+            return True
+
+        media_results = [r for r in media_results if matches_year(r)]
+
+    # Apply local sorting
+    if sort_key == "vote_average.desc":
+        media_results.sort(key=lambda x: x.get("vote_average", 0), reverse=True)
+    elif sort_key in ("primary_release_date.desc", "first_air_date.desc"):
+        media_results.sort(key=lambda x: x.get("release_date") or x.get("first_air_date") or "", reverse=True)
+    elif sort_key in ("primary_release_date.asc", "first_air_date.asc"):
+        media_results.sort(key=lambda x: x.get("release_date") or x.get("first_air_date") or "")
 
     tmdb_ids = [r["id"] for r in media_results if "id" in r]
     existing_entries = {}
@@ -148,7 +196,7 @@ async def search_titles_partial(
         context={
             "results": media_results,
             "existing_entries": existing_entries,
-            "active_label": f"Search results for \"{q.strip()}\"",
+            "active_label": f"Search results for \"{query_str}\"",
         },
     )
 
