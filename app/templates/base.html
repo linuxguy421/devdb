@@ -12,7 +12,7 @@
     <!-- Top Navigation Bar -->
     <nav class="sticky top-0 z-40 bg-neutral-900/90 backdrop-blur-md border-b border-neutral-800/60 px-6 py-3.5">
         <div class="max-w-7xl mx-auto flex justify-between items-center">
-            
+
             <!-- Logo & Brand -->
             <div class="flex items-center space-x-8">
                 <a href="/" class="flex items-center space-x-2">
@@ -20,14 +20,14 @@
                 </a>
                 <!-- Main Nav Links -->
                 <div class="flex items-center space-x-2 text-sm font-semibold">
-                    <a href="/" 
+                    <a href="/"
                        class="px-4 py-2 rounded-full transition-all duration-200 {% if request.url.path == '/' %}bg-neutral-800 text-white shadow-sm{% else %}text-neutral-400 hover:text-white hover:bg-neutral-800/50{% endif %}">
                         Search
                     </a>
                     <a href="/to-watch" class="px-4 py-1.5 rounded-full {% if request.url.path == '/to-watch' %}bg-neutral-800 text-white border border-neutral-700/50 shadow-sm{% else %}text-neutral-400 hover:text-white hover:bg-neutral-800/60{% endif %} transition-all duration-200">
                         Want To Watch
                     </a>
-                    <a href="/watched" 
+                    <a href="/watched"
                        class="px-4 py-2 rounded-full transition-all duration-200 {% if request.url.path == '/watched' %}bg-neutral-800 text-white shadow-sm{% else %}text-neutral-400 hover:text-white hover:bg-neutral-800/50{% endif %}">
                         Watched
                     </a>
@@ -37,12 +37,21 @@
             <!-- Profile & User Controls -->
             <div class="flex items-center space-x-4">
                 {% if current_user %}
-                    <div class="flex items-center space-x-3 bg-neutral-900 border border-neutral-800 rounded-full px-3.5 py-1.5">
-                        <div class="w-6 h-6 rounded-full bg-emerald-500 flex items-center justify-center text-neutral-950 font-bold text-xs uppercase">
-                            {{ current_user.username[0] if current_user.username else 'U' }}
-                        </div>
+                    <button type="button"
+                            hx-get="/profile/edit-modal"
+                            hx-target="#modal-container"
+                            hx-swap="innerHTML"
+                            class="flex items-center space-x-3 bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 rounded-full px-3.5 py-1.5 transition-all cursor-pointer"
+                            title="Edit Profile">
+                        {% if current_user.avatar_url %}
+                            <img src="{{ current_user.avatar_url }}" alt="{{ current_user.username }}" class="w-6 h-6 rounded-full object-cover border border-emerald-500/60">
+                        {% else %}
+                            <div class="w-6 h-6 rounded-full bg-emerald-500 flex items-center justify-center text-neutral-950 font-bold text-xs uppercase">
+                                {{ current_user.username[0] if current_user.username else 'U' }}
+                            </div>
+                        {% endif %}
                         <span class="text-sm font-medium text-neutral-200">{{ current_user.username }}</span>
-                    </div>
+                    </button>
                 {% else %}
                     <a href="/login" class="text-sm font-semibold text-neutral-300 hover:text-white transition">Log In</a>
                     <a href="/register" class="text-sm font-semibold bg-white text-neutral-950 hover:bg-neutral-200 px-4 py-2 rounded-full transition">Sign Up</a>

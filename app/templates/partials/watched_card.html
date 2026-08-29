@@ -17,7 +17,6 @@
     <div class="p-4 flex-1 flex flex-col justify-between overflow-hidden relative">
         <button type="button"
                 hx-delete="/watch-entries/{{ entry.id }}"
-                hx-confirm="Remove '{{ entry.tmdb_data.title }}' from your watchlist?"
                 onclick="event.stopPropagation()"
                 title="Remove entry"
                 class="absolute top-3 right-3 opacity-0 group-hover:opacity-100 p-1 text-neutral-500 hover:text-rose-400 hover:bg-neutral-800 rounded-lg transition-all z-10 cursor-pointer">

@@ -14,6 +14,19 @@ router = APIRouter(prefix="/watch-entries", tags=["Watch Entries"])
 templates = Jinja2Templates(directory="app/templates")
 
 
+def render_toast(message: str, badge_type: str = "success") -> str:
+    border_color = "border-emerald-500/40 text-emerald-400" if badge_type == "success" else "border-rose-500/40 text-rose-400"
+    dot_color = "bg-emerald-400" if badge_type == "success" else "bg-rose-400"
+    return f"""
+    <div id="toast-container" hx-swap-oob="afterbegin">
+        <div class="animate-toast flex items-center gap-2 bg-neutral-900 border {border_color} px-3.5 py-2.5 rounded-xl shadow-2xl text-xs font-semibold backdrop-blur-md pointer-events-auto">
+            <span class="w-2 h-2 rounded-full {dot_color}"></span>
+            <span>{message}</span>
+        </div>
+    </div>
+    """
+
+
 @router.post("", response_class=HTMLResponse)
 async def create_watch_entry(
     request: Request,
@@ -40,12 +53,15 @@ async def create_watch_entry(
     await db.commit()
     await db.refresh(entry)
 
-    if from_modal == "true":
-        return HTMLResponse(content='<div id="modal-container" hx-swap-oob="true"></div>')
+    toast_oob = render_toast("Added to watchlist!")
 
-    return templates.TemplateResponse(
-        request=request, name="partials/watch_button.html", context={"entry": entry, "tmdb_id": tmdb_id, "media_type": media_type}
+    if from_modal == "true":
+        return HTMLResponse(content=f'<div id="modal-container" hx-swap-oob="true"></div>{toast_oob}')
+
+    btn_html = templates.get_template("partials/watch_button.html").render(
+        {"request": request, "entry": entry, "tmdb_id": tmdb_id, "media_type": media_type}
     )
+    return HTMLResponse(content=btn_html + toast_oob)
 
 
 @router.get("/{entry_id}/edit-modal", response_class=HTMLResponse)
@@ -108,11 +124,9 @@ async def update_watch_entry(
 
     entry.tmdb_data = await tmdb_service.get_formatted_details(entry.tmdb_id, entry.media_type)
 
-    # 1. Primary target response (for Watchlist grid)
     card_html = templates.get_template("partials/watched_card.html").render({"request": request, "entry": entry})
     oob_close_modal = '<div id="modal-container" hx-swap-oob="true"></div>'
 
-    # 2. OOB swap for Search grid watch button container
     btn_html = templates.get_template("partials/watch_button.html").render({
         "request": request,
         "entry": entry,
@@ -120,8 +134,9 @@ async def update_watch_entry(
         "media_type": entry.media_type
     })
     oob_btn_swap = btn_html.replace(f'id="watch-btn-{entry.tmdb_id}"', f'id="watch-btn-{entry.tmdb_id}" hx-swap-oob="true"')
+    toast_oob = render_toast("Entry updated!")
 
-    return HTMLResponse(content=card_html + oob_close_modal + oob_btn_swap)
+    return HTMLResponse(content=card_html + oob_close_modal + oob_btn_swap + toast_oob)
 
 
 @router.post("/{entry_id}/quick-watched", response_class=HTMLResponse)
@@ -142,7 +157,8 @@ async def quick_mark_watched(
     entry.status = "watched"
     await db.commit()
 
-    return HTMLResponse(content="")
+    toast_oob = render_toast("Marked as watched!")
+    return HTMLResponse(content=toast_oob)
 
 
 @router.delete("/{entry_id}", response_class=HTMLResponse)
@@ -167,15 +183,19 @@ async def delete_watch_entry(
     await db.delete(entry)
     await db.commit()
 
-    card_oob_delete = f'<div id="entry-{entry_id}" hx-swap-oob="delete"></div>'
+    card_oob_delete = f'<div id="entry-{entry_id}" hx-swap-oob="delete"></div><div id="entry-card-{entry_id}" hx-swap-oob="delete"></div>'
     modal_oob_close = '<div id="modal-container" hx-swap-oob="true"></div>'
+    toast_oob = render_toast("Removed entry", badge_type="remove")
 
-    watch_btn_content = templates.get_template("partials/watch_button.html").render({
-        "request": request,
-        "entry": None,
-        "tmdb_id": tmdb_id,
-        "media_type": media_type,
-    })
-    watch_btn_oob = watch_btn_content.replace(f'id="watch-btn-{tmdb_id}"', f'id="watch-btn-{tmdb_id}" hx-swap-oob="true"')
+    try:
+        watch_btn_content = templates.get_template("partials/watch_button.html").render({
+            "request": request,
+            "entry": None,
+            "tmdb_id": tmdb_id,
+            "media_type": media_type,
+        })
+        watch_btn_oob = watch_btn_content.replace(f'id="watch-btn-{tmdb_id}"', f'id="watch-btn-{tmdb_id}" hx-swap-oob="true"')
+    except Exception:
+        watch_btn_oob = ""
 
-    return HTMLResponse(content=card_oob_delete + modal_oob_close + watch_btn_oob)
+    return HTMLResponse(content=card_oob_delete + modal_oob_close + watch_btn_oob + toast_oob)

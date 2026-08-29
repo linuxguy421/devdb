@@ -6,13 +6,23 @@
     <title>DevDB - Watched Titles</title>
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
     <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @keyframes toast-in {
+            from { opacity: 0; transform: translateY(10px) scale(0.95); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        .animate-toast { animation: toast-in 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+    </style>
 </head>
 <body class="min-h-screen flex flex-col font-sans antialiased bg-neutral-950 text-neutral-100">
+
+    <!-- Toast Notification Container -->
+    <div id="toast-container" class="fixed bottom-6 right-6 z-50 flex flex-col gap-2 pointer-events-none"></div>
 
     <!-- Top Navigation Bar -->
     <nav class="sticky top-0 z-40 bg-neutral-900/90 backdrop-blur-md border-b border-neutral-800/80 px-6 py-3.5">
         <div class="max-w-7xl mx-auto flex justify-between items-center">
-            
+
             <!-- Brand & Links -->
             <div class="flex items-center space-x-8">
                 <a href="/" class="flex items-center space-x-2">
@@ -21,9 +31,9 @@
                 <div class="flex items-center space-x-2 text-sm font-semibold">
                     <a href="/" class="px-4 py-1.5 rounded-full text-neutral-400 hover:text-white hover:bg-neutral-800/60 transition-all duration-200">
                         Search
-                    <a href="/to-watch" class="px-4 py-1.5 rounded-full {% if request.url.path == '/to-watch' %}bg-neutral-800 text-white border border-neutral-700/50 shadow-sm{% else %}text-neutral-400 hover:text-white hover:bg-neutral-800/60{% endif %} transition-all duration-200">
-                        Want To Watch
                     </a>
+                    <a href="/to-watch" class="px-4 py-1.5 rounded-full text-neutral-400 hover:text-white hover:bg-neutral-800/60 transition-all duration-200">
+                        Want To Watch
                     </a>
                     <a href="/watched" class="px-4 py-1.5 rounded-full bg-neutral-800 text-white border border-neutral-700/50 shadow-sm transition-all duration-200">
                         Watched
@@ -31,13 +41,24 @@
                 </div>
             </div>
 
-            <!-- Profile Info -->
-            <div class="flex items-center space-x-3 bg-neutral-900/80 border border-neutral-800 rounded-full px-3.5 py-1.5">
-                <div class="w-6 h-6 rounded-full bg-emerald-500 flex items-center justify-center text-neutral-950 font-extrabold text-xs uppercase">
-                    {{ current_user.username[0] if current_user and current_user.username else 'U' }}
-                </div>
-                <span class="text-xs font-semibold text-neutral-300">{{ current_user.username if current_user else 'User' }}</span>
-            </div>
+            <!-- Profile Info & Edit Trigger -->
+            {% if current_user %}
+            <button type="button"
+                    hx-get="/profile/edit-modal"
+                    hx-target="#modal-container"
+                    hx-swap="innerHTML"
+                    class="flex items-center space-x-3 bg-neutral-900/80 hover:bg-neutral-800 border border-neutral-800 hover:border-neutral-700 rounded-full px-3.5 py-1.5 transition-all cursor-pointer"
+                    title="Edit Profile">
+                {% if current_user.avatar_url %}
+                    <img src="{{ current_user.avatar_url }}" alt="{{ current_user.username }}" class="w-6 h-6 rounded-full object-cover border border-emerald-500/60">
+                {% else %}
+                    <div class="w-6 h-6 rounded-full bg-emerald-500 flex items-center justify-center text-neutral-950 font-extrabold text-xs uppercase">
+                        {{ current_user.username[0] if current_user.username else 'U' }}
+                    </div>
+                {% endif %}
+                <span class="text-xs font-semibold text-neutral-300">{{ current_user.username }}</span>
+            </button>
+            {% endif %}
         </div>
     </nav>
 
@@ -53,7 +74,7 @@
             </span>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div id="watched-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {% for entry in entries %}
                 {% include "partials/watched_card.html" %}
             {% else %}
@@ -67,5 +88,21 @@
 
     <!-- Container for dynamic HTMX modals -->
     <div id="modal-container"></div>
+
+    <!-- Auto-dismiss toast observer -->
+    <script>
+        document.addEventListener('htmx:afterSettle', function(evt) {
+            const toasts = document.querySelectorAll('#toast-container > div:not([data-timer])');
+            toasts.forEach(toast => {
+                toast.setAttribute('data-timer', 'true');
+                setTimeout(() => {
+                    toast.style.opacity = '0';
+                    toast.style.transform = 'translateY(10px)';
+                    toast.style.transition = 'all 0.3s ease';
+                    setTimeout(() => toast.remove(), 300);
+                }, 3000);
+            });
+        });
+    </script>
 </body>
 </html>

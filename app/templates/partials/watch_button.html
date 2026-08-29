@@ -24,7 +24,6 @@
                 <span>✓ Want to Watch</span>
                 <button type="button"
                         hx-delete="/watch-entries/{{ entry.id }}"
-                        hx-confirm="Remove from Watchlist?"
                         title="Remove from Watchlist"
                         class="ml-1 text-sky-400/60 hover:text-rose-400 font-bold transition-colors cursor-pointer">
                     ✕
@@ -41,18 +40,18 @@
 
     {% else %}
         <!-- Un-added / Deleted Fallback: Dual Buttons -->
-        <form hx-post="/watch-entries" 
-              hx-target="#watch-btn-{{ tmdb_id if tmdb_id else (entry.tmdb_id if entry else '') }}" 
+        <form hx-post="/watch-entries"
+              hx-target="#watch-btn-{{ tmdb_id if tmdb_id else (entry.tmdb_id if entry else '') }}"
               hx-swap="outerHTML">
             <input type="hidden" name="tmdb_id" value="{{ tmdb_id if tmdb_id else (entry.tmdb_id if entry else '') }}">
             <input type="hidden" name="media_type" value="{{ media_type if media_type else (entry.media_type if entry else 'movie') }}">
 
             <div class="flex space-x-2">
-                <button type="submit" name="status_val" value="watched" 
+                <button type="submit" name="status_val" value="watched"
                         class="flex-1 text-xs font-extrabold bg-emerald-500 text-neutral-950 hover:bg-emerald-400 px-3 py-1.5 rounded-full shadow-md shadow-emerald-950/40 transition-all text-center cursor-pointer">
                     I've seen it
                 </button>
-                <button type="submit" name="status_val" value="to_watch" 
+                <button type="submit" name="status_val" value="to_watch"
                         class="flex-1 text-xs font-semibold bg-neutral-800 text-neutral-200 hover:bg-neutral-700 hover:text-white px-3 py-1.5 rounded-full border border-neutral-700/60 transition-all text-center cursor-pointer">
                     Want to see
                 </button>
