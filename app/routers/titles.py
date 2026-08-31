@@ -89,6 +89,10 @@ async def browse_titles_partial(
     )
     results = data.get("results", [])
 
+    for item in results:
+        if not item.get("media_type"):
+            item["media_type"] = target_media
+
     tmdb_ids = [r["id"] for r in results if "id" in r]
     existing_entries = {}
 
@@ -146,15 +150,12 @@ async def search_titles_partial(
     results = data.get("results", [])
     media_results = [r for r in results if r.get("media_type") in ("movie", "tv")]
 
-    # Filter by media_type (movie/tv)
     if media_val:
         media_results = [r for r in media_results if r.get("media_type") == media_val]
 
-    # Filter by genre_id
     if parsed_genre_id:
         media_results = [r for r in media_results if parsed_genre_id in r.get("genre_ids", [])]
 
-    # Filter by release year or decade
     if year_val:
         def matches_year(item):
             date_str = item.get("release_date") or item.get("first_air_date") or ""
@@ -170,7 +171,6 @@ async def search_titles_partial(
 
         media_results = [r for r in media_results if matches_year(r)]
 
-    # Apply local sorting
     if sort_key == "vote_average.desc":
         media_results.sort(key=lambda x: x.get("vote_average", 0), reverse=True)
     elif sort_key in ("primary_release_date.desc", "first_air_date.desc"):

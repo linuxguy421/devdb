@@ -15,12 +15,13 @@
         {% set existing = existing_entries.get(item.id) %}
         {% set release_date = item.release_date or item.first_air_date or '' %}
         {% set release_year = release_date[:4] if release_date else '' %}
+        {% set media_kind = item.media_type or 'movie' %}
 
         <div class="bg-neutral-900 border border-neutral-800/80 rounded-xl hover:bg-neutral-800/70 hover:border-neutral-700/60 transition-all duration-200 p-4 flex gap-4 shadow-lg shadow-black/30 group">
 
             <!-- Clickable Poster -->
             <div class="cursor-pointer shrink-0 rounded-lg overflow-hidden bg-neutral-800 border border-neutral-700/50"
-                 hx-get="/titles/info-modal/{{ item.id }}/{{ item.media_type }}"
+                 hx-get="/titles/info-modal/{{ item.id }}/{{ media_kind }}"
                  hx-target="#modal-container"
                  hx-swap="innerHTML">
                 {% if item.poster_path %}
@@ -34,7 +35,7 @@
                 <div>
                     <!-- Clickable Title with Release Year -->
                     <div class="cursor-pointer group-hover:text-emerald-400 transition-colors inline-block max-w-full"
-                         hx-get="/titles/info-modal/{{ item.id }}/{{ item.media_type }}"
+                         hx-get="/titles/info-modal/{{ item.id }}/{{ media_kind }}"
                          hx-target="#modal-container"
                          hx-swap="innerHTML">
                         <h3 class="font-bold text-base text-white leading-tight">
@@ -45,7 +46,7 @@
                         </h3>
                     </div>
                     <span class="block w-max text-[10px] uppercase font-bold tracking-wider bg-neutral-800 text-neutral-400 px-2 py-0.5 rounded-full border border-neutral-700/50 mt-1.5">
-                        {{ item.media_type }}
+                        {{ media_kind }}
                     </span>
                 </div>
 
@@ -77,19 +78,24 @@
                             </div>
                         {% endif %}
                     {% else %}
-                        <form hx-post="/watch-entries" hx-target="#watch-btn-{{ item.id }}" hx-swap="outerHTML">
-                            <input type="hidden" name="tmdb_id" value="{{ item.id }}">
-                            <input type="hidden" name="media_type" value="{{ item.media_type }}">
-
-                            <div class="flex space-x-2 mt-2">
-                                <button type="submit" name="status_val" value="watched" class="flex-1 text-xs font-extrabold bg-emerald-500 text-neutral-950 hover:bg-emerald-400 px-3 py-1.5 rounded-full shadow-md shadow-emerald-950/40 transition-all text-center cursor-pointer">
-                                    I've seen it
-                                </button>
-                                <button type="submit" name="status_val" value="to_watch" class="flex-1 text-xs font-semibold bg-neutral-800 text-neutral-200 hover:bg-neutral-700 hover:text-white px-3 py-1.5 rounded-full border border-neutral-700/60 transition-all text-center cursor-pointer">
-                                    Want to see
-                                </button>
-                            </div>
-                        </form>
+                        <div class="flex space-x-2 mt-2">
+                            <button type="button"
+                                    hx-post="/watch-entries"
+                                    hx-vals='{"tmdb_id": {{ item.id }}, "media_type": "{{ media_kind }}", "status_val": "watched"}'
+                                    hx-target="#watch-btn-{{ item.id }}"
+                                    hx-swap="outerHTML"
+                                    class="flex-1 text-xs font-extrabold bg-emerald-500 text-neutral-950 hover:bg-emerald-400 px-3 py-1.5 rounded-full shadow-md shadow-emerald-950/40 transition-all text-center cursor-pointer">
+                                I've seen it
+                            </button>
+                            <button type="button"
+                                    hx-post="/watch-entries"
+                                    hx-vals='{"tmdb_id": {{ item.id }}, "media_type": "{{ media_kind }}", "status_val": "to_watch"}'
+                                    hx-target="#watch-btn-{{ item.id }}"
+                                    hx-swap="outerHTML"
+                                    class="flex-1 text-xs font-semibold bg-neutral-800 text-neutral-200 hover:bg-neutral-700 hover:text-white px-3 py-1.5 rounded-full border border-neutral-700/60 transition-all text-center cursor-pointer">
+                                Want to see
+                            </button>
+                        </div>
                     {% endif %}
                 </div>
             </div>
