@@ -1,0 +1,24 @@
+<div class="space-y-6">
+    <div class="grid grid-cols-3 gap-4">
+        <div class="bg-neutral-950/60 border border-neutral-800 p-4 rounded-xl text-center">
+            <span class="block text-2xl font-black text-white">{{ stats.total_entries if stats else 0 }}</span>
+            <span class="text-[11px] font-bold uppercase tracking-wider text-neutral-400">Total Tracked</span>
+        </div>
+        <div class="bg-neutral-950/60 border border-neutral-800 p-4 rounded-xl text-center">
+            <span class="block text-2xl font-black text-emerald-400">{{ stats.watched if stats else 0 }}</span>
+            <span class="text-[11px] font-bold uppercase tracking-wider text-neutral-400">Watched</span>
+        </div>
+        <div class="bg-neutral-950/60 border border-neutral-800 p-4 rounded-xl text-center">
+            <span class="block text-2xl font-black text-amber-400">{{ stats.to_watch if stats else 0 }}</span>
+            <span class="text-[11px] font-bold uppercase tracking-wider text-neutral-400">Want To Watch</span>
+        </div>
+    </div>
+
+    <div class="bg-neutral-950/50 p-4 rounded-xl border border-neutral-800/80 space-y-2">
+        <h4 class="text-xs font-bold text-neutral-400 uppercase tracking-wider">Account Information</h4>
+        <div class="text-xs space-y-1 text-neutral-300">
+            <p><span class="text-neutral-500">Email:</span> {{ current_user.email }}</p>
+            <p><span class="text-neutral-500">Account ID:</span> #{{ current_user.id }}</p>
+        </div>
+    </div>
+</div>
