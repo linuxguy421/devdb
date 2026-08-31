@@ -42,11 +42,11 @@
             <!-- Profile Info & Edit Trigger -->
             {% if current_user %}
             <button type="button"
-                    hx-get="/profile/edit-modal"
+                    hx-get="/profile/modal"
                     hx-target="#modal-container"
                     hx-swap="innerHTML"
                     class="flex items-center space-x-3 bg-neutral-900/80 hover:bg-neutral-800 border border-neutral-800 hover:border-neutral-700 rounded-full px-3.5 py-1.5 transition-all cursor-pointer"
-                    title="Edit Profile">
+                    title="Account & Profile Hub">
                 {% if current_user.avatar_url %}
                     <img src="{{ current_user.avatar_url }}" alt="{{ current_user.username }}" class="w-6 h-6 rounded-full object-cover border border-emerald-500/60">
                 {% else %}
@@ -80,19 +80,24 @@
                     <button hx-delete="/watch-entries/{{ entry.id }}"
                             hx-target="#entry-card-{{ entry.id }}"
                             hx-swap="outerHTML swap:200ms"
-                            class="absolute top-2.5 right-2.5 w-6 h-6 flex items-center justify-center rounded-full bg-neutral-800/80 text-neutral-400 hover:text-rose-400 hover:bg-rose-950/60 border border-neutral-700/50 hover:border-rose-800/50 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-all cursor-pointer"
+                            class="absolute top-2.5 right-2.5 z-20 w-6 h-6 flex items-center justify-center rounded-full bg-neutral-800/80 text-neutral-400 hover:text-rose-400 hover:bg-rose-950/60 border border-neutral-700/50 hover:border-rose-800/50 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-all cursor-pointer"
                             title="Remove from watchlist">
                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
                         </svg>
                     </button>
 
-                    <div class="flex space-x-4">
-                        <div class="w-20 h-28 bg-neutral-800 rounded-lg overflow-hidden shrink-0 border border-neutral-700/50">
+                    <!-- Clickable Media Area to Open Verbose Info Modal -->
+                    <div hx-get="/titles/info-modal/{{ entry.tmdb_id }}/{{ entry.media_type }}"
+                         hx-target="#modal-container"
+                         hx-swap="innerHTML"
+                         class="flex space-x-4 cursor-pointer group/card flex-1">
+                        
+                        <div class="w-20 h-28 bg-neutral-800 rounded-lg overflow-hidden shrink-0 border border-neutral-700/50 group-hover/card:border-emerald-500/50 transition-colors">
                             {% if entry.tmdb_data and entry.tmdb_data.poster_path %}
                                 <img src="https://image.tmdb.org/t/p/w185{{ entry.tmdb_data.poster_path }}"
                                      alt="{{ entry.tmdb_data.title }}"
-                                     class="w-full h-full object-cover">
+                                     class="w-full h-full object-cover group-hover/card:scale-105 transition-transform duration-300">
                             {% else %}
                                 <div class="w-full h-full flex items-center justify-center text-neutral-600">
                                     <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -102,27 +107,34 @@
                             {% endif %}
                         </div>
 
-                        <div class="flex-1 overflow-hidden flex flex-col justify-between pr-4">
+                        <div class="flex-1 overflow-hidden flex flex-col justify-between pr-6">
                             <div>
-                                <h3 class="text-sm font-bold text-white truncate group-hover:text-emerald-400 transition-colors">
+                                <h3 class="text-sm font-bold text-white truncate group-hover/card:text-emerald-400 transition-colors">
                                     {{ entry.tmdb_data.title if entry.tmdb_data else 'Title Unavailable' }}
                                 </h3>
                                 <p class="text-xs text-neutral-400 capitalize mt-0.5">{{ entry.media_type }}</p>
                             </div>
 
-                            <div class="mt-3">
-                                <!-- Action: Quick Mark as Watched -->
-                                <button hx-post="/watch-entries/{{ entry.id }}/quick-watched"
-                                        hx-target="#entry-card-{{ entry.id }}"
-                                        hx-swap="outerHTML swap:200ms"
-                                        class="w-full py-1.5 px-3 bg-emerald-500/10 hover:bg-emerald-500 text-emerald-400 hover:text-neutral-950 border border-emerald-500/30 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer">
-                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
-                                    </svg>
-                                    Mark as Watched
-                                </button>
-                            </div>
+                            <span class="text-[11px] font-semibold text-emerald-400/90 hover:underline flex items-center gap-1 mt-2">
+                                View Details
+                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                                </svg>
+                            </span>
                         </div>
+                    </div>
+
+                    <!-- Action: Quick Mark as Watched -->
+                    <div class="mt-3.5 pt-3 border-t border-neutral-800/60">
+                        <button hx-post="/watch-entries/{{ entry.id }}/quick-watched"
+                                hx-target="#entry-card-{{ entry.id }}"
+                                hx-swap="outerHTML swap:200ms"
+                                class="w-full py-1.5 px-3 bg-emerald-500/10 hover:bg-emerald-500 text-emerald-400 hover:text-neutral-950 border border-emerald-500/30 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                            </svg>
+                            Mark as Watched
+                        </button>
                     </div>
                 </div>
             {% else %}

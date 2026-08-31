@@ -1,36 +1,68 @@
-import logging
-import os
-from typing import Any, Dict, List, Optional
+import time
+from typing import Any, Dict, Optional, Tuple
 import httpx
-from dotenv import load_dotenv
 
-load_dotenv()
+from app.config import settings
 
-try:
-    from app.config import settings
-except ImportError:
-    settings = None
 
-logger = logging.getLogger(__name__)
+class TTLCache:
+    """Lightweight thread-safe in-memory cache with expiration support."""
+    def __init__(self, default_ttl: int = 3600):
+        self._store: Dict[str, Tuple[float, Any]] = {}
+        self.default_ttl = default_ttl
+
+    def get(self, key: str) -> Optional[Any]:
+        if key in self._store:
+            expires_at, data = self._store[key]
+            if time.time() < expires_at:
+                return data
+            del self._store[key]  # Expired
+        return None
+
+    def set(self, key: str, value: Any, ttl: Optional[int] = None) -> None:
+        ttl_val = ttl if ttl is not None else self.default_ttl
+        self._store[key] = (time.time() + ttl_val, value)
 
 
 class TMDBService:
-    def __init__(self, api_key: str | None = None):
-        self._override_api_key = api_key
+    def __init__(self):
+        self.api_key = settings.TMDB_API_KEY
         self.base_url = "https://api.themoviedb.org/3"
-        self.image_base_url = "https://image.tmdb.org/t/p/w500"
+        self.cache = TTLCache(default_ttl=3600)  # Default 1 hour TTL
 
-    @property
-    def api_key(self) -> str:
-        if self._override_api_key:
-            return self._override_api_key
+    def _make_cache_key(self, endpoint: str, params: Dict[str, Any]) -> str:
+        """Generates a stable cache key from endpoint and query parameters."""
+        filtered_params = {k: v for k, v in params.items() if k != "api_key"}
+        sorted_items = sorted(filtered_params.items())
+        param_str = "&".join(f"{k}={v}" for k, v in sorted_items)
+        return f"{endpoint}?{param_str}"
 
-        if settings:
-            key = getattr(settings, "TMDB_API_KEY", None) or getattr(settings, "tmdb_api_key", None)
-            if key:
-                return str(key)
+    async def _get(
+        self,
+        endpoint: str,
+        params: Optional[Dict[str, Any]] = None,
+        ttl: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        if params is None:
+            params = {}
+        params["api_key"] = self.api_key
 
-        return os.getenv("TMDB_API_KEY", "") or os.getenv("tmdb_api_key", "")
+        cache_key = self._make_cache_key(endpoint, params)
+        cached_res = self.cache.get(cache_key)
+        if cached_res is not None:
+            return cached_res
+
+        async with httpx.AsyncClient() as client:
+            response = await client.get(f"{self.base_url}{endpoint}", params=params)
+            if response.status_code == 200:
+                data = response.json()
+                self.cache.set(cache_key, data, ttl=ttl)
+                return data
+            return {}
+
+    async def search_multi(self, query: str) -> Dict[str, Any]:
+        # Cache search queries for 1 hour
+        return await self._get("/search/multi", {"query": query}, ttl=3600)
 
     async def discover_titles(
         self,
@@ -38,159 +70,87 @@ class TMDBService:
         sort_by: str = "popularity.desc",
         genre_id: Optional[int] = None,
         year_filter: Optional[str] = None,
-        page: int = 1,
     ) -> Dict[str, Any]:
-        """Fetch discovered titles using TMDB's discover API with decade and year range support."""
-        key = self.api_key
-        if not key:
-            logger.warning("TMDB_API_KEY is not configured or empty.")
-            return {"results": []}
-
-        media_type = "movie" if media_type not in ["movie", "tv"] else media_type
-        endpoint = f"{self.base_url}/discover/{media_type}"
-        params = {
-            "api_key": key,
-            "sort_by": sort_by,
-            "include_adult": "false",
-            "language": "en-US",
-            "page": page,
-        }
+        endpoint = f"/discover/{media_type}"
+        params: Dict[str, Any] = {"sort_by": sort_by}
 
         if genre_id:
-            params["with_genres"] = str(genre_id)
+            params["with_genres"] = genre_id
 
-        # Handle Decade vs Specific Year filtering
         if year_filter:
             if year_filter.startswith("decade_"):
-                decade_raw = year_filter.replace("decade_", "").replace("s", "")
-                if decade_raw.isdigit():
-                    start_year = int(decade_raw)
-                    end_year = start_year + 9
-                    start_date = f"{start_year}-01-01"
-                    end_date = f"{end_year}-12-31"
-
-                    if media_type == "movie":
-                        params["primary_release_date.gte"] = start_date
-                        params["primary_release_date.lte"] = end_date
-                    else:
-                        params["first_air_date.gte"] = start_date
-                        params["first_air_date.lte"] = end_date
+                dec = int(year_filter.replace("decade_", "").replace("s", ""))
+                date_key_gte = "primary_release_date.gte" if media_type == "movie" else "first_air_date.gte"
+                date_key_lte = "primary_release_date.lte" if media_type == "movie" else "first_air_date.lte"
+                params[date_key_gte] = f"{dec}-01-01"
+                params[date_key_lte] = f"{dec + 9}-12-31"
             elif year_filter.isdigit():
-                if media_type == "movie":
-                    params["primary_release_year"] = year_filter
-                else:
-                    params["first_air_date_year"] = year_filter
+                year_key = "primary_release_year" if media_type == "movie" else "first_air_date_year"
+                params[year_key] = year_filter
 
-        if "vote_average" in sort_by:
-            params["vote_count.gte"] = 200
+        # Cache discover feeds for 1 hour
+        return await self._get(endpoint, params, ttl=3600)
 
-        async with httpx.AsyncClient() as client:
-            try:
-                response = await client.get(endpoint, params=params, timeout=10.0)
-                if response.status_code == 200:
-                    data = response.json()
-                    results = data.get("results", [])
-                    for item in results:
-                        item["media_type"] = media_type
-                    return {"results": results}
-                logger.error(f"TMDB Discover API returned HTTP {response.status_code}: {response.text}")
-            except httpx.HTTPError as e:
-                logger.error(f"TMDB Discover API connection error: {e}")
+    async def get_formatted_details(self, tmdb_id: int, media_type: str) -> Dict[str, Any]:
+        target_type = media_type if media_type in ("movie", "tv") else "movie"
 
-        return {"results": []}
+        # Media details & cast rarely change, so cache raw response for 24 hours (86,400s)
+        raw_data = await self._get(
+            f"/{target_type}/{tmdb_id}",
+            {"append_to_response": "credits,external_ids"},
+            ttl=86400,
+        )
 
-    async def get_details(self, tmdb_id: int, media_type: str = "movie") -> Dict[str, Any]:
-        key = self.api_key
-        if not key:
-            logger.warning("TMDB_API_KEY is not configured or empty.")
-            return {
-                "id": tmdb_id,
-                "title": f"Title #{tmdb_id}",
-                "name": f"Title #{tmdb_id}",
-                "poster_path": None,
-            }
+        if not raw_data:
+            return {}
 
-        media_type = "movie" if media_type not in ["movie", "tv"] else media_type
-        endpoint = f"{self.base_url}/{media_type}/{tmdb_id}"
-        params = {"api_key": key, "append_to_response": "credits"}
+        credits = raw_data.get("credits", {})
+        crew = credits.get("crew", [])
+        cast_raw = credits.get("cast", [])
 
-        async with httpx.AsyncClient() as client:
-            try:
-                response = await client.get(endpoint, params=params, timeout=10.0)
-                if response.status_code == 200:
-                    return response.json()
-                logger.error(f"TMDB API returned HTTP {response.status_code}: {response.text}")
-            except httpx.HTTPError as e:
-                logger.error(f"TMDB get_details connection error: {e}")
+        director = next((m["name"] for m in crew if m.get("job") == "Director"), None)
+        created_by = [c["name"] for c in raw_data.get("created_by", [])] if "created_by" in raw_data else []
+
+        formatted_cast = [
+            {"name": member.get("name"), "character": member.get("character", "")}
+            for member in cast_raw[:12]
+        ]
+
+        external_ids = raw_data.get("external_ids", {})
+        imdb_id = raw_data.get("imdb_id") or external_ids.get("imdb_id")
+
+        runtime = raw_data.get("runtime")
+        if not runtime and raw_data.get("episode_run_time"):
+            runtimes = raw_data.get("episode_run_time")
+            runtime = runtimes[0] if runtimes else None
 
         return {
-            "id": tmdb_id,
-            "title": f"Title #{tmdb_id}",
-            "name": f"Title #{tmdb_id}",
-            "poster_path": None,
-        }
-
-    async def get_formatted_details(self, tmdb_id: int, media_type: str = "movie") -> Dict[str, Any]:
-        raw_data = await self.get_details(tmdb_id, media_type)
-
-        crew = raw_data.get("credits", {}).get("crew", [])
-        directors = [c["name"] for c in crew if c.get("job") == "Director"]
-        if not directors and "created_by" in raw_data:
-            directors = [creator.get("name") for creator in raw_data.get("created_by", [])]
-        director_str = ", ".join(directors) if directors else "N/A"
-
-        cast = raw_data.get("credits", {}).get("cast", [])
-        actor_str = ", ".join([c["name"] for c in cast[:3]]) if cast else "N/A"
-
-        vote_avg = raw_data.get("vote_average")
-        rating_str = f"{round(vote_avg, 1)}" if vote_avg is not None else "N/A"
-
-        release_date = raw_data.get("release_date") or raw_data.get("first_air_date") or ""
-        release_year = release_date[:4] if release_date else ""
-
-        return {
-            "title": raw_data.get("title") or raw_data.get("name") or f"Title #{tmdb_id}",
-            "director": director_str,
-            "actors": actor_str,
-            "imdb_rating": rating_str,
+            "id": raw_data.get("id"),
+            "title": raw_data.get("title") or raw_data.get("name"),
+            "original_title": raw_data.get("original_title") or raw_data.get("original_name"),
+            "overview": raw_data.get("overview"),
             "poster_path": raw_data.get("poster_path"),
-            "overview": raw_data.get("overview", "No description available."),
-            "year": release_year,
+            "backdrop_path": raw_data.get("backdrop_path"),
+            "release_date": raw_data.get("release_date") or raw_data.get("first_air_date"),
+            "status": raw_data.get("status"),
+            "tagline": raw_data.get("tagline"),
+            "vote_average": raw_data.get("vote_average"),
+            "vote_count": raw_data.get("vote_count"),
+            "popularity": raw_data.get("popularity"),
+            "runtime": runtime,
+            "number_of_seasons": raw_data.get("number_of_seasons"),
+            "number_of_episodes": raw_data.get("number_of_episodes"),
+            "genres": raw_data.get("genres", []),
+            "budget": raw_data.get("budget", 0),
+            "revenue": raw_data.get("revenue", 0),
+            "imdb_id": imdb_id,
+            "original_language": raw_data.get("original_language"),
+            "production_companies": [c.get("name") for c in raw_data.get("production_companies", [])],
+            "networks": [n.get("name") for n in raw_data.get("networks", [])] if "networks" in raw_data else [],
+            "cast": formatted_cast,
+            "director": director,
+            "created_by": created_by,
         }
-
-    async def search_multi(self, query: str) -> Dict[str, Any]:
-        if not query:
-            return {"results": []}
-
-        key = self.api_key
-        if not key:
-            logger.warning("TMDB_API_KEY is not configured or empty.")
-            return {"results": []}
-
-        endpoint = f"{self.base_url}/search/multi"
-        params = {
-            "api_key": key,
-            "query": query,
-            "include_adult": "false",
-            "language": "en-US",
-            "page": 1,
-        }
-
-        async with httpx.AsyncClient() as client:
-            try:
-                response = await client.get(
-                    endpoint,
-                    params=params,
-                    headers={"accept": "application/json"},
-                    timeout=10.0,
-                )
-                if response.status_code == 200:
-                    return response.json()
-                logger.error(f"TMDB API returned HTTP {response.status_code}: {response.text}")
-            except httpx.HTTPError as e:
-                logger.error(f"TMDB API connection error: {e}")
-
-        return {"results": []}
 
 
 tmdb_service = TMDBService()

@@ -1,6 +1,11 @@
 {% for item in results %}
 <div class="bg-slate-900 border border-slate-800/80 rounded-xl overflow-hidden flex flex-col group hover:border-slate-700 hover:shadow-xl hover:shadow-indigo-950/20 transition-all duration-200">
-    <div class="aspect-[2/3] bg-slate-950 relative overflow-hidden">
+    
+    <!-- Poster Click Trigger -->
+    <div hx-get="/titles/info-modal/{{ item.id }}/{{ item.media_type }}"
+         hx-target="#modal-container"
+         hx-swap="innerHTML"
+         class="aspect-[2/3] bg-slate-950 relative overflow-hidden cursor-pointer">
         {% if item.poster_path %}
             <img src="https://image.tmdb.org/t/p/w500{{ item.poster_path }}" alt="{{ item.title or item.name }}" class="w-full h-full object-cover group-hover:scale-105 transition duration-300" loading="lazy">
         {% else %}
@@ -9,7 +14,7 @@
                 <span class="text-xs">No Poster</span>
             </div>
         {% endif %}
-        
+
         <span class="absolute top-2.5 right-2.5 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-slate-950/80 text-indigo-300 border border-slate-800 backdrop-blur">
             {{ item.media_type }}
         </span>
@@ -22,16 +27,20 @@
     </div>
 
     <div class="p-4 flex flex-col flex-1 justify-between gap-3">
-        <div>
+        <!-- Title Click Trigger -->
+        <div hx-get="/titles/info-modal/{{ item.id }}/{{ item.media_type }}"
+             hx-target="#modal-container"
+             hx-swap="innerHTML"
+             class="cursor-pointer">
             <h3 class="font-semibold text-sm text-slate-100 group-hover:text-indigo-400 transition line-clamp-1" title="{{ item.title or item.name }}">{{ item.title or item.name }}</h3>
             <p class="text-xs text-slate-500 mt-0.5">{{ (item.release_date or item.first_air_date or "N/A")[:4] }}</p>
         </div>
 
-        <button 
-            hx-post="/watch-entries/add" 
+        <button
+            hx-post="/watch-entries/add"
             hx-vals='{"tmdb_id": {{ item.id }}, "media_type": "{{ item.media_type }}"}'
             hx-swap="outerHTML"
-            class="w-full text-xs font-semibold bg-slate-800 hover:bg-indigo-600 text-slate-200 hover:text-white py-2 rounded-lg transition flex items-center justify-center gap-1.5"
+            class="w-full text-xs font-semibold bg-slate-800 hover:bg-indigo-600 text-slate-200 hover:text-white py-2 rounded-lg transition flex items-center justify-center gap-1.5 cursor-pointer"
         >
             <i class="fa-solid fa-plus text-[10px]"></i> Watchlist
         </button>
