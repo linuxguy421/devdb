@@ -156,9 +156,15 @@
                 <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
                     {% for member in tmdb_data.cast[:8] %}
                     <div class="bg-neutral-950/70 border border-neutral-800/90 rounded-xl p-2.5 flex items-center space-x-2.5">
-                        <div class="w-8 h-8 rounded-full bg-neutral-800 flex items-center justify-center text-emerald-400 font-bold text-xs uppercase shrink-0 border border-neutral-700">
-                            {{ member[0] if member is string else (member.name[0] if member.name is defined else 'A') }}
-                        </div>
+                        {% if member.profile_path is defined and member.profile_path %}
+                            <img src="https://image.tmdb.org/t/p/w185{{ member.profile_path }}"
+                                 alt="{{ member.name if member.name is defined else member }}"
+                                 class="w-8 h-8 rounded-full object-cover shrink-0 border border-neutral-700">
+                        {% else %}
+                            <div class="w-8 h-8 rounded-full bg-neutral-800 flex items-center justify-center text-emerald-400 font-bold text-xs uppercase shrink-0 border border-neutral-700">
+                                {{ member[0] if member is string else (member.name[0] if member.name is defined else 'A') }}
+                            </div>
+                        {% endif %}
                         <div class="overflow-hidden">
                             <p class="text-xs font-bold text-white truncate">
                                 {{ member if member is string else (member.name if member.name is defined else member) }}

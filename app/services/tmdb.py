@@ -112,7 +112,11 @@ class TMDBService:
         created_by = [c["name"] for c in raw_data.get("created_by", [])] if "created_by" in raw_data else []
 
         formatted_cast = [
-            {"name": member.get("name"), "character": member.get("character", "")}
+            {
+                "name": member.get("name"),
+                "character": member.get("character", ""),
+                "profile_path": member.get("profile_path"),
+            }
             for member in cast_raw[:12]
         ]
 
