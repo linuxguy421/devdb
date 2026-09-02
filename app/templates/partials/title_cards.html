@@ -1,13 +1,23 @@
 {% for item in results %}
-<div class="bg-slate-900 border border-slate-800/80 rounded-xl overflow-hidden flex flex-col group hover:border-slate-700 hover:shadow-xl hover:shadow-indigo-950/20 transition-all duration-200">
-    
+{% set title_str = item.title or item.name %}
+{% set poster = item.poster_path %}
+{% set release_str = (item.release_date or item.first_air_date or "N/A")[:4] %}
+{% set entry = item.user_entry if item.user_entry is defined else (item.entry if item.entry is defined else None) %}
+{% set status = item.user_status if item.user_status is defined else (entry.status if entry else None) %}
+
+<div id="card-{{ item.id }}" class="bg-slate-900 border border-slate-800/80 rounded-xl overflow-hidden flex flex-col group hover:border-slate-700 hover:shadow-xl hover:shadow-indigo-950/20 transition-all duration-200">
+
     <!-- Poster Click Trigger -->
     <div hx-get="/titles/info-modal/{{ item.id }}/{{ item.media_type }}"
          hx-target="#modal-container"
          hx-swap="innerHTML"
          class="aspect-[2/3] bg-slate-950 relative overflow-hidden cursor-pointer">
-        {% if item.poster_path %}
-            <img src="https://image.tmdb.org/t/p/w500{{ item.poster_path }}" alt="{{ item.title or item.name }}" class="w-full h-full object-cover group-hover:scale-105 transition duration-300" loading="lazy">
+        {% if poster %}
+            {% if poster.startswith('http') or poster.startswith('/static') %}
+                <img src="{{ poster }}" alt="{{ title_str }}" class="w-full h-full object-cover group-hover:scale-105 transition duration-300" loading="lazy">
+            {% else %}
+                <img src="https://image.tmdb.org/t/p/w500{{ poster }}" alt="{{ title_str }}" class="w-full h-full object-cover group-hover:scale-105 transition duration-300" loading="lazy">
+            {% endif %}
         {% else %}
             <div class="w-full h-full flex flex-col items-center justify-center text-slate-600 gap-2">
                 <i class="fa-solid fa-image text-2xl"></i>
@@ -32,18 +42,48 @@
              hx-target="#modal-container"
              hx-swap="innerHTML"
              class="cursor-pointer">
-            <h3 class="font-semibold text-sm text-slate-100 group-hover:text-indigo-400 transition line-clamp-1" title="{{ item.title or item.name }}">{{ item.title or item.name }}</h3>
-            <p class="text-xs text-slate-500 mt-0.5">{{ (item.release_date or item.first_air_date or "N/A")[:4] }}</p>
+            <h3 class="font-semibold text-sm text-slate-100 group-hover:text-indigo-400 transition line-clamp-1" title="{{ title_str }}">{{ title_str }}</h3>
+            <p class="text-xs text-slate-500 mt-0.5">{{ release_str }}</p>
         </div>
 
-        <button
-            hx-post="/watch-entries/add"
-            hx-vals='{"tmdb_id": {{ item.id }}, "media_type": "{{ item.media_type }}"}'
-            hx-swap="outerHTML"
-            class="w-full text-xs font-semibold bg-slate-800 hover:bg-indigo-600 text-slate-200 hover:text-white py-2 rounded-lg transition flex items-center justify-center gap-1.5 cursor-pointer"
-        >
-            <i class="fa-solid fa-plus text-[10px]"></i> Watchlist
-        </button>
+        <!-- Action Buttons -->
+        <div class="flex items-center gap-2">
+            {% if status == 'watched' %}
+                <div class="w-full text-xs font-bold text-emerald-400 bg-emerald-950/80 border border-emerald-800/80 py-2 rounded-lg flex items-center justify-center gap-1.5">
+                    <i class="fa-solid fa-check text-[10px]"></i> Watched
+                </div>
+            {% elif status == 'to_watch' %}
+                <button
+                    hx-post="/watch-entries/add"
+                    hx-vals='{"tmdb_id": {{ item.id }}, "media_type": "{{ item.media_type }}", "status_val": "watched"}'
+                    hx-target="#card-{{ item.id }}"
+                    hx-swap="outerHTML"
+                    class="w-full text-xs font-bold bg-emerald-500 hover:bg-emerald-400 text-neutral-950 py-2 rounded-lg transition flex items-center justify-center gap-1.5 cursor-pointer shadow-md shadow-emerald-950/40"
+                    title="Move from Want To Watch to Watched"
+                >
+                    <i class="fa-solid fa-eye text-[10px]"></i> I've Seen It
+                </button>
+            {% else %}
+                <button
+                    hx-post="/watch-entries/add"
+                    hx-vals='{"tmdb_id": {{ item.id }}, "media_type": "{{ item.media_type }}", "status_val": "to_watch"}'
+                    hx-target="#card-{{ item.id }}"
+                    hx-swap="outerHTML"
+                    class="flex-1 text-xs font-semibold bg-slate-800 hover:bg-indigo-600 text-slate-200 hover:text-white py-2 rounded-lg transition flex items-center justify-center gap-1 cursor-pointer"
+                >
+                    <i class="fa-solid fa-plus text-[10px]"></i> Watchlist
+                </button>
+                <button
+                    hx-post="/watch-entries/add"
+                    hx-vals='{"tmdb_id": {{ item.id }}, "media_type": "{{ item.media_type }}", "status_val": "watched"}'
+                    hx-target="#card-{{ item.id }}"
+                    hx-swap="outerHTML"
+                    class="flex-1 text-xs font-semibold bg-emerald-600/20 hover:bg-emerald-500 text-emerald-400 hover:text-neutral-950 border border-emerald-500/40 py-2 rounded-lg transition flex items-center justify-center gap-1 cursor-pointer"
+                >
+                    <i class="fa-solid fa-eye text-[10px]"></i> Seen It
+                </button>
+            {% endif %}
+        </div>
     </div>
 </div>
 {% else %}

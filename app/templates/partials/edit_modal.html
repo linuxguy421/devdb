@@ -1,3 +1,15 @@
+{% set m_item = entry.media_item %}
+{% set t_data = entry.tmdb_data or {} %}
+
+{% set backdrop = m_item.backdrop_path if m_item and m_item.backdrop_path else t_data.backdrop_path %}
+{% set poster = m_item.poster_path if m_item and m_item.poster_path else t_data.poster_path %}
+{% set title_str = m_item.title if m_item and m_item.title else (t_data.title or 'Title Unavailable') %}
+{% set release_val = m_item.release_date if m_item and m_item.release_date else (t_data.release_date or t_data.year) %}
+{% set rating_val = m_item.vote_average if m_item and m_item.vote_average else (t_data.vote_average or t_data.imdb_rating) %}
+{% set runtime_val = m_item.runtime if m_item and m_item.runtime else t_data.runtime %}
+{% set overview_text = m_item.overview if m_item and m_item.overview else t_data.overview %}
+{% set genres_val = m_item.genres if m_item and m_item.genres else t_data.genres %}
+
 <div id="info-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-3 sm:p-6 animate-in fade-in duration-200">
     <!-- Click outside backdrop to close -->
     <div class="absolute inset-0" onclick="document.getElementById('info-modal')?.remove()"></div>
@@ -9,8 +21,12 @@
 
         <!-- Backdrop Hero Header -->
         <div class="relative w-full h-48 sm:h-64 bg-neutral-950 overflow-hidden shrink-0 border-b border-neutral-800">
-            {% if entry.tmdb_data.backdrop_path %}
-                <img src="https://image.tmdb.org/t/p/w1280{{ entry.tmdb_data.backdrop_path }}" alt="Backdrop" class="w-full h-full object-cover opacity-40 blur-[1px]">
+            {% if backdrop %}
+                {% if backdrop.startswith('http') or backdrop.startswith('/static') %}
+                    <img src="{{ backdrop }}" alt="Backdrop" class="w-full h-full object-cover opacity-40 blur-[1px]">
+                {% else %}
+                    <img src="https://image.tmdb.org/t/p/w1280{{ backdrop }}" alt="Backdrop" class="w-full h-full object-cover opacity-40 blur-[1px]">
+                {% endif %}
             {% endif %}
             <div class="absolute inset-0 bg-gradient-to-t from-neutral-900 via-neutral-900/60 to-transparent"></div>
 
@@ -27,8 +43,12 @@
             <div class="absolute bottom-4 left-4 right-4 sm:left-6 sm:right-6 flex items-end gap-5 z-20">
                 <!-- Poster Thumbnail -->
                 <div class="w-24 sm:w-32 h-36 sm:h-48 bg-neutral-950 rounded-xl overflow-hidden shrink-0 border-2 border-neutral-800 shadow-2xl hidden sm:block">
-                    {% if entry.tmdb_data.poster_path %}
-                        <img src="https://image.tmdb.org/t/p/w500{{ entry.tmdb_data.poster_path }}" alt="{{ entry.tmdb_data.title }}" class="w-full h-full object-cover">
+                    {% if poster %}
+                        {% if poster.startswith('http') or poster.startswith('/static') %}
+                            <img src="{{ poster }}" alt="{{ title_str }}" class="w-full h-full object-cover">
+                        {% else %}
+                            <img src="https://image.tmdb.org/t/p/w500{{ poster }}" alt="{{ title_str }}" class="w-full h-full object-cover">
+                        {% endif %}
                     {% else %}
                         <div class="w-full h-full flex flex-col items-center justify-center text-neutral-600 p-2 text-center">
                             <svg class="w-8 h-8 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -46,37 +66,36 @@
                             {{ entry.media_type }}
                         </span>
 
-                        {% if entry.tmdb_data.status %}
+                        {% if t_data.status %}
                         <span class="text-[10px] font-bold uppercase tracking-wider text-neutral-300 bg-neutral-800/90 border border-neutral-700/60 px-2.5 py-0.5 rounded-full">
-                            {{ entry.tmdb_data.status }}
+                            {{ t_data.status }}
                         </span>
                         {% endif %}
 
-                        {% set rel_date = entry.tmdb_data.release_date or entry.tmdb_data.year %}
-                        {% if rel_date %}
+                        {% if release_val %}
                         <span class="text-xs text-neutral-300 font-semibold bg-neutral-950/70 px-2.5 py-0.5 rounded-full border border-neutral-800">
-                            {{ rel_date[:4] if rel_date|string|length >= 4 else rel_date }}
+                            {{ release_val[:4] if release_val|string|length >= 4 else release_val }}
                         </span>
                         {% endif %}
 
-                        {% if entry.tmdb_data.content_rating %}
+                        {% if t_data.content_rating %}
                         <span class="text-[10px] font-bold uppercase text-amber-400 bg-amber-950/80 border border-amber-800/60 px-2 py-0.5 rounded">
-                            {{ entry.tmdb_data.content_rating }}
+                            {{ t_data.content_rating }}
                         </span>
                         {% endif %}
                     </div>
 
                     <h2 class="text-2xl sm:text-4xl font-black text-white tracking-tight leading-none drop-shadow-md">
-                        {{ entry.tmdb_data.title }}
+                        {{ title_str }}
                     </h2>
 
-                    {% if entry.tmdb_data.original_title and entry.tmdb_data.original_title != entry.tmdb_data.title %}
-                    <p class="text-xs text-neutral-400 italic">Original Title: {{ entry.tmdb_data.original_title }}</p>
+                    {% if t_data.original_title and t_data.original_title != title_str %}
+                    <p class="text-xs text-neutral-400 italic">Original Title: {{ t_data.original_title }}</p>
                     {% endif %}
 
-                    {% if entry.tmdb_data.tagline %}
+                    {% if t_data.tagline %}
                     <p class="text-xs sm:text-sm italic text-emerald-400/90 font-medium drop-shadow-sm">
-                        "{{ entry.tmdb_data.tagline }}"
+                        "{{ t_data.tagline }}"
                     </p>
                     {% endif %}
                 </div>
@@ -86,40 +105,39 @@
         <!-- Quick Stats Bar -->
         <div class="bg-neutral-950/90 border-b border-neutral-800 px-6 py-3 flex flex-wrap items-center justify-between gap-4 text-xs font-semibold">
             <div class="flex flex-wrap items-center gap-4">
-                {% set rating_val = entry.tmdb_data.vote_average or entry.tmdb_data.imdb_rating %}
                 {% if rating_val %}
                 <div class="flex items-center space-x-1.5 bg-amber-950/50 border border-amber-800/60 px-3 py-1 rounded-lg text-amber-400 font-bold">
                     <svg class="w-4 h-4 fill-current text-amber-400" viewBox="0 0 20 20">
                         <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
                     </svg>
                     <span>{{ "%.1f"|format(rating_val|float) }} / 10</span>
-                    {% if entry.tmdb_data.vote_count %}
-                    <span class="text-neutral-500 font-normal">({{ "{:,}".format(entry.tmdb_data.vote_count) }} votes)</span>
+                    {% if t_data.vote_count %}
+                    <span class="text-neutral-500 font-normal">({{ "{:,}".format(t_data.vote_count) }} votes)</span>
                     {% endif %}
                 </div>
                 {% endif %}
 
-                {% if entry.tmdb_data.runtime %}
+                {% if runtime_val %}
                 <span class="text-neutral-300 flex items-center gap-1">
                     <svg class="w-4 h-4 text-neutral-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                    {{ entry.tmdb_data.runtime }} min
+                    {{ runtime_val }} min
                 </span>
-                {% elif entry.tmdb_data.number_of_seasons %}
+                {% elif t_data.number_of_seasons %}
                 <span class="text-neutral-300 flex items-center gap-1">
                     <svg class="w-4 h-4 text-neutral-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
-                    {{ entry.tmdb_data.number_of_seasons }} Season{% if entry.tmdb_data.number_of_seasons > 1 %}s{% endif %} ({{ entry.tmdb_data.number_of_episodes or 0 }} Episodes)
+                    {{ t_data.number_of_seasons }} Season{% if t_data.number_of_seasons > 1 %}s{% endif %} ({{ t_data.number_of_episodes or 0 }} Episodes)
                 </span>
                 {% endif %}
 
-                {% if entry.tmdb_data.popularity %}
+                {% if t_data.popularity %}
                 <span class="text-neutral-400 hidden sm:inline">
-                    🔥 Popularity Index: <strong class="text-neutral-200">{{ "%.1f"|format(entry.tmdb_data.popularity) }}</strong>
+                    🔥 Popularity Index: <strong class="text-neutral-200">{{ "%.1f"|format(t_data.popularity) }}</strong>
                 </span>
                 {% endif %}
             </div>
 
-            {% if entry.tmdb_data.imdb_id %}
-            <a href="https://www.imdb.com/title/{{ entry.tmdb_data.imdb_id }}" target="_blank" rel="noopener noreferrer"
+            {% if t_data.imdb_id %}
+            <a href="https://www.imdb.com/title/{{ t_data.imdb_id }}" target="_blank" rel="noopener noreferrer"
                class="text-xs font-bold bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2.5 py-1 rounded-md transition flex items-center gap-1">
                 <span>IMDb Page</span>
                 <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
@@ -131,12 +149,23 @@
         <div class="p-6 overflow-y-auto space-y-6 flex-1 text-sm text-neutral-300">
 
             <!-- Genres -->
-            {% if entry.tmdb_data.genres %}
+            {% if genres_val %}
             <div class="flex flex-wrap gap-2">
-                {% for genre in entry.tmdb_data.genres %}
-                <span class="text-xs font-bold text-neutral-200 bg-neutral-800 border border-neutral-700/80 px-3 py-1 rounded-lg">
-                    {{ genre.name if genre.name is defined else genre }}
-                </span>
+                {% if genres_val is string %}
+                    {% set genre_list = genres_val.split(',') %}
+                {% elif genres_val is sequence and genres_val|length > 0 and genres_val[0] is string and genres_val[0]|length == 1 %}
+                    {% set genre_list = (genres_val|join('')).split(',') %}
+                {% else %}
+                    {% set genre_list = genres_val %}
+                {% endif %}
+
+                {% for genre in genre_list %}
+                    {% set g_name = genre.name if genre.name is defined else (genre.strip() if genre is string else genre) %}
+                    {% if g_name and g_name != ',' %}
+                    <span class="text-xs font-bold text-neutral-200 bg-neutral-800 border border-neutral-700/80 px-3 py-1 rounded-lg">
+                        {{ g_name }}
+                    </span>
+                    {% endif %}
                 {% endfor %}
             </div>
             {% endif %}
@@ -144,9 +173,9 @@
             <!-- Synopsis -->
             <div class="space-y-2">
                 <h3 class="text-xs font-bold uppercase tracking-wider text-neutral-400">Overview</h3>
-                {% if entry.tmdb_data.overview %}
+                {% if overview_text %}
                 <p class="leading-relaxed text-neutral-200 text-sm sm:text-base">
-                    {{ entry.tmdb_data.overview }}
+                    {{ overview_text }}
                 </p>
                 {% else %}
                 <p class="text-neutral-500 italic">No synopsis available for this title.</p>
@@ -154,7 +183,7 @@
             </div>
 
             <!-- Featured Cast Grid -->
-            {% set cast_list = entry.tmdb_data.cast or (entry.tmdb_data.actors.split(', ') if entry.tmdb_data.actors else []) %}
+            {% set cast_list = t_data.cast or (t_data.actors.split(', ') if t_data.actors else []) %}
             {% if cast_list %}
             <div class="space-y-3">
                 <h3 class="text-xs font-bold uppercase tracking-wider text-neutral-400">Featured Cast</h3>
@@ -184,56 +213,53 @@
             </div>
             {% endif %}
 
-            <!-- Deep Technical & Production Dossier -->
+            <!-- Technical & Production Dossier -->
             <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 bg-neutral-950/70 p-4 rounded-xl border border-neutral-800 text-xs">
-                {% if entry.tmdb_data.director or entry.tmdb_data.created_by %}
+                {% set dir_val = m_item.director if m_item and m_item.director else (t_data.director or t_data.created_by) %}
+                {% if dir_val %}
                 <div>
                     <span class="text-neutral-500 font-semibold block uppercase text-[10px]">Director / Creator</span>
                     <span class="text-white font-medium">
-                        {% if entry.tmdb_data.director %}
-                            {{ entry.tmdb_data.director }}
-                        {% elif entry.tmdb_data.created_by %}
-                            {{ entry.tmdb_data.created_by|join(', ') if entry.tmdb_data.created_by is sequence and entry.tmdb_data.created_by is not string else entry.tmdb_data.created_by }}
-                        {% endif %}
+                        {{ dir_val|join(', ') if dir_val is sequence and dir_val is not string else dir_val }}
                     </span>
                 </div>
                 {% endif %}
 
-                {% if entry.tmdb_data.budget and entry.tmdb_data.budget > 0 %}
+                {% if t_data.budget and t_data.budget > 0 %}
                 <div>
                     <span class="text-neutral-500 font-semibold block uppercase text-[10px]">Production Budget</span>
-                    <span class="text-emerald-400 font-bold">${{ "{:,}".format(entry.tmdb_data.budget) }}</span>
+                    <span class="text-emerald-400 font-bold">${{ "{:,}".format(t_data.budget) }}</span>
                 </div>
                 {% endif %}
 
-                {% if entry.tmdb_data.revenue and entry.tmdb_data.revenue > 0 %}
+                {% if t_data.revenue and t_data.revenue > 0 %}
                 <div>
                     <span class="text-neutral-500 font-semibold block uppercase text-[10px]">Box Office Revenue</span>
-                    <span class="text-emerald-400 font-bold">${{ "{:,}".format(entry.tmdb_data.revenue) }}</span>
+                    <span class="text-emerald-400 font-bold">${{ "{:,}".format(t_data.revenue) }}</span>
                 </div>
                 {% endif %}
 
-                {% if entry.tmdb_data.original_language %}
+                {% if t_data.original_language %}
                 <div>
                     <span class="text-neutral-500 font-semibold block uppercase text-[10px]">Original Language</span>
-                    <span class="text-white font-medium uppercase">{{ entry.tmdb_data.original_language }}</span>
+                    <span class="text-white font-medium uppercase">{{ t_data.original_language }}</span>
                 </div>
                 {% endif %}
 
-                {% if entry.tmdb_data.networks %}
+                {% if t_data.networks %}
                 <div>
                     <span class="text-neutral-500 font-semibold block uppercase text-[10px]">Networks</span>
                     <span class="text-white font-medium">
-                        {{ entry.tmdb_data.networks|join(', ') if entry.tmdb_data.networks is sequence and entry.tmdb_data.networks is not string else entry.tmdb_data.networks }}
+                        {{ t_data.networks|join(', ') if t_data.networks is sequence and t_data.networks is not string else t_data.networks }}
                     </span>
                 </div>
                 {% endif %}
 
-                {% if entry.tmdb_data.production_companies %}
+                {% if t_data.production_companies %}
                 <div class="sm:col-span-2 md:col-span-3">
                     <span class="text-neutral-500 font-semibold block uppercase text-[10px]">Production Companies</span>
                     <span class="text-neutral-300 font-medium">
-                        {{ entry.tmdb_data.production_companies|join(' • ') if entry.tmdb_data.production_companies is sequence and entry.tmdb_data.production_companies is not string else entry.tmdb_data.production_companies }}
+                        {{ t_data.production_companies|join(' • ') if t_data.production_companies is sequence and t_data.production_companies is not string else t_data.production_companies }}
                     </span>
                 </div>
                 {% endif %}

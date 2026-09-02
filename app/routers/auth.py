@@ -16,8 +16,6 @@ from app.models import User
 router = APIRouter(tags=["Auth"])
 templates = Jinja2Templates(directory="app/templates")
 
-# bcrypt silently ignores/errors past 72 bytes of input; truncate consistently
-# everywhere a password is hashed or checked so hashing and verifying agree.
 BCRYPT_MAX_BYTES = 72
 
 
@@ -58,12 +56,6 @@ async def get_current_user_optional(
     request: Request,
     db: AsyncSession = Depends(get_db),
 ) -> Optional[User]:
-    """Resolves the logged-in User from the request, or None. Never raises.
-
-    Use this (directly, or aliased as `get_current_user` on import) in routes
-    that should still render for logged-out visitors and handle the missing
-    user themselves (redirect to /login, render an anonymous view, etc).
-    """
     token = _extract_token(request)
     if not token:
         return None
@@ -84,10 +76,6 @@ async def get_current_user_optional(
 async def get_current_user(
     current_user: Optional[User] = Depends(get_current_user_optional),
 ) -> User:
-    """Resolves the logged-in User, or raises 401. Use for routes that should
-    never be reachable while logged out and don't want to handle that case
-    themselves.
-    """
     if current_user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -121,7 +109,6 @@ async def register_post(
     try:
         await db.commit()
     except IntegrityError:
-        # Most likely a duplicate email, since username was already checked above.
         await db.rollback()
         return RedirectResponse(url="/register?error=email_exists", status_code=status.HTTP_303_SEE_OTHER)
 

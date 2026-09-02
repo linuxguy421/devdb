@@ -3,7 +3,6 @@ from sqlalchemy.orm import declarative_base
 
 from app.config import settings
 
-# Ensure connection URL uses postgresql+asyncpg://
 db_url = settings.DATABASE_URL
 if db_url.startswith("postgresql://"):
     db_url = db_url.replace("postgresql://", "postgresql+asyncpg://", 1)

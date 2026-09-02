@@ -129,10 +129,21 @@
             <!-- Genres & Key Badges -->
             {% if tmdb_data.genres %}
             <div class="flex flex-wrap gap-2">
-                {% for genre in tmdb_data.genres %}
-                <span class="text-xs font-bold text-neutral-200 bg-neutral-800 border border-neutral-700/80 px-3 py-1 rounded-lg">
-                    {{ genre.name if genre.name is defined else genre }}
-                </span>
+                {% if tmdb_data.genres is string %}
+                    {% set genre_list = tmdb_data.genres.split(',') %}
+                {% elif tmdb_data.genres is sequence and tmdb_data.genres|length > 0 and tmdb_data.genres[0] is string and tmdb_data.genres[0]|length == 1 %}
+                    {% set genre_list = (tmdb_data.genres|join('')).split(',') %}
+                {% else %}
+                    {% set genre_list = tmdb_data.genres %}
+                {% endif %}
+
+                {% for genre in genre_list %}
+                    {% set g_name = genre.name if genre.name is defined else (genre.strip() if genre is string else genre) %}
+                    {% if g_name and g_name != ',' %}
+                    <span class="text-xs font-bold text-neutral-200 bg-neutral-800 border border-neutral-700/80 px-3 py-1 rounded-lg">
+                        {{ g_name }}
+                    </span>
+                    {% endif %}
                 {% endfor %}
             </div>
             {% endif %}

@@ -74,6 +74,9 @@
 
         <div id="to-watch-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {% for entry in entries %}
+                {% set poster = entry.media_item.poster_path if entry.media_item and entry.media_item.poster_path else (entry.tmdb_data.poster_path if entry.tmdb_data and entry.tmdb_data.poster_path else None) %}
+                {% set title_str = entry.media_item.title if entry.media_item and entry.media_item.title else (entry.tmdb_data.title if entry.tmdb_data and entry.tmdb_data.title else 'Title Unavailable') %}
+
                 <div id="entry-card-{{ entry.id }}" class="relative bg-neutral-900 border border-neutral-800/80 rounded-xl p-4 flex flex-col justify-between hover:border-neutral-700 transition group shadow-md">
 
                     <!-- Corner Delete Button -->
@@ -92,12 +95,14 @@
                          hx-target="#modal-container"
                          hx-swap="innerHTML"
                          class="flex space-x-4 cursor-pointer group/card flex-1">
-                        
+
                         <div class="w-20 h-28 bg-neutral-800 rounded-lg overflow-hidden shrink-0 border border-neutral-700/50 group-hover/card:border-emerald-500/50 transition-colors">
-                            {% if entry.tmdb_data and entry.tmdb_data.poster_path %}
-                                <img src="https://image.tmdb.org/t/p/w185{{ entry.tmdb_data.poster_path }}"
-                                     alt="{{ entry.tmdb_data.title }}"
-                                     class="w-full h-full object-cover group-hover/card:scale-105 transition-transform duration-300">
+                            {% if poster %}
+                                {% if poster.startswith('http') or poster.startswith('/static') %}
+                                    <img src="{{ poster }}" alt="{{ title_str }}" class="w-full h-full object-cover group-hover/card:scale-105 transition-transform duration-300">
+                                {% else %}
+                                    <img src="https://image.tmdb.org/t/p/w185{{ poster }}" alt="{{ title_str }}" class="w-full h-full object-cover group-hover/card:scale-105 transition-transform duration-300">
+                                {% endif %}
                             {% else %}
                                 <div class="w-full h-full flex items-center justify-center text-neutral-600">
                                     <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -110,7 +115,7 @@
                         <div class="flex-1 overflow-hidden flex flex-col justify-between pr-6">
                             <div>
                                 <h3 class="text-sm font-bold text-white truncate group-hover/card:text-emerald-400 transition-colors">
-                                    {{ entry.tmdb_data.title if entry.tmdb_data else 'Title Unavailable' }}
+                                    {{ title_str }}
                                 </h3>
                                 <p class="text-xs text-neutral-400 capitalize mt-0.5">{{ entry.media_type }}</p>
                             </div>

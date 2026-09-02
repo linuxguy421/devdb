@@ -4,8 +4,6 @@ from typing import Optional
 from pydantic import BaseModel, EmailStr, Field, ConfigDict
 
 
-# ---------- User ----------
-
 class UserCreate(BaseModel):
     username: str = Field(min_length=3, max_length=50)
     email: EmailStr
@@ -31,8 +29,6 @@ class Token(BaseModel):
     token_type: str = "bearer"
 
 
-# ---------- Title ----------
-
 class TitleOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -55,11 +51,9 @@ class TitleSearchResult(BaseModel):
     overview: Optional[str] = None
 
 
-# ---------- WatchEntry ----------
-
 class WatchEntryCreate(BaseModel):
     tmdb_id: int
-    media_type: str  # "movie" or "tv"
+    media_type: str
     rating: Optional[float] = Field(default=None, ge=0, le=10)
     review_text: Optional[str] = None
     watched_date: Optional[datetime] = None

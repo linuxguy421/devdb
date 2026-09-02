@@ -44,8 +44,6 @@ SORT_MAP = {
 
 
 def _entry_key(tmdb_id: int, media_type: str) -> str:
-    """Composite key so a movie and a tv show that happen to share a tmdb_id
-    don't collide when we look up whether the user already has an entry."""
     return f"{tmdb_id}:{media_type}"
 
 
@@ -103,8 +101,6 @@ async def browse_titles_partial(
     existing_entries = {}
 
     if tmdb_ids and current_user:
-        # Every result here shares target_media, so filtering on it too keeps
-        # a movie and tv show with the same tmdb_id from being conflated.
         stmt = select(WatchEntry).where(
             WatchEntry.user_id == current_user.id,
             WatchEntry.tmdb_id.in_(tmdb_ids),
@@ -113,6 +109,13 @@ async def browse_titles_partial(
         db_res = await db.execute(stmt)
         entries = db_res.scalars().all()
         existing_entries = {_entry_key(entry.tmdb_id, entry.media_type): entry for entry in entries}
+
+    for item in results:
+        m_type = item.get("media_type") or target_media
+        key = _entry_key(item["id"], m_type)
+        entry = existing_entries.get(key)
+        item["user_entry"] = entry
+        item["user_status"] = entry.status if entry else None
 
     active_label = construct_browse_label(target_media, sort_key, parsed_genre_id, year_val)
 
@@ -170,7 +173,7 @@ async def search_titles_partial(
             date_str = item.get("release_date") or item.get("first_air_date") or ""
             if not date_str or len(date_str) < 4:
                 return False
-            yr = date_str[:4]
+            yr = str(date_str)[:4]
             if year_val.startswith("decade_"):
                 dec = int(year_val.replace("decade_", "").replace("s", ""))
                 return yr.isdigit() and dec <= int(yr) <= dec + 9
@@ -183,16 +186,14 @@ async def search_titles_partial(
     if sort_key == "vote_average.desc":
         media_results.sort(key=lambda x: x.get("vote_average", 0), reverse=True)
     elif sort_key in ("primary_release_date.desc", "first_air_date.desc"):
-        media_results.sort(key=lambda x: x.get("release_date") or x.get("first_air_date") or "", reverse=True)
+        media_results.sort(key=lambda x: str(x.get("release_date") or x.get("first_air_date") or ""), reverse=True)
     elif sort_key in ("primary_release_date.asc", "first_air_date.asc"):
-        media_results.sort(key=lambda x: x.get("release_date") or x.get("first_air_date") or "")
+        media_results.sort(key=lambda x: str(x.get("release_date") or x.get("first_air_date") or ""))
 
     tmdb_ids = [r["id"] for r in media_results if "id" in r]
     existing_entries = {}
 
     if tmdb_ids and current_user:
-        # Search results can mix movies and tv shows, so unlike browse we
-        # can't filter on a single media_type here -- key by the pair instead.
         stmt = select(WatchEntry).where(
             WatchEntry.user_id == current_user.id,
             WatchEntry.tmdb_id.in_(tmdb_ids),
@@ -200,6 +201,13 @@ async def search_titles_partial(
         db_res = await db.execute(stmt)
         entries = db_res.scalars().all()
         existing_entries = {_entry_key(entry.tmdb_id, entry.media_type): entry for entry in entries}
+
+    for item in media_results:
+        m_type = item.get("media_type") or "movie"
+        key = _entry_key(item["id"], m_type)
+        entry = existing_entries.get(key)
+        item["user_entry"] = entry
+        item["user_status"] = entry.status if entry else None
 
     return templates.TemplateResponse(
         request=request,
