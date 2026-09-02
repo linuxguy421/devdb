@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models import Friendship, User, WatchEntry
-from app.routers.auth import get_current_user
+from app.routers.auth import get_current_user_optional as get_current_user
 from app.services.tmdb import tmdb_service
 
 router = APIRouter(tags=["Pages"])
@@ -81,6 +81,8 @@ async def register_page(
     error_msg = None
     if error == "exists":
         error_msg = "Username already exists."
+    elif error == "email_exists":
+        error_msg = "An account with that email already exists."
     elif isinstance(error, str):
         error_msg = error
 

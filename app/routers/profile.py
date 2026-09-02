@@ -8,7 +8,7 @@ from sqlalchemy.orm import selectinload
 
 from app.database import get_db
 from app.models import Friendship, User, WatchEntry
-from app.routers.auth import get_current_user
+from app.routers.auth import get_current_user_optional as get_current_user
 
 router = APIRouter(prefix="/profile", tags=["Profile"])
 templates = Jinja2Templates(directory="app/templates")

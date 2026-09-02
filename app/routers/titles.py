@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models import User, WatchEntry
-from app.routers.auth import get_current_user
+from app.routers.auth import get_current_user_optional as get_current_user
 from app.services.tmdb import tmdb_service
 
 router = APIRouter(prefix="/titles", tags=["Titles"])
@@ -41,6 +41,12 @@ SORT_MAP = {
     "first_air_date.desc": "Newest Releases",
     "first_air_date.asc": "Oldest Releases",
 }
+
+
+def _entry_key(tmdb_id: int, media_type: str) -> str:
+    """Composite key so a movie and a tv show that happen to share a tmdb_id
+    don't collide when we look up whether the user already has an entry."""
+    return f"{tmdb_id}:{media_type}"
 
 
 def construct_browse_label(media_type: str, sort_by: str, genre_id: Optional[int], year_filter: Optional[str]) -> str:
@@ -97,13 +103,16 @@ async def browse_titles_partial(
     existing_entries = {}
 
     if tmdb_ids and current_user:
+        # Every result here shares target_media, so filtering on it too keeps
+        # a movie and tv show with the same tmdb_id from being conflated.
         stmt = select(WatchEntry).where(
             WatchEntry.user_id == current_user.id,
             WatchEntry.tmdb_id.in_(tmdb_ids),
+            WatchEntry.media_type == target_media,
         )
         db_res = await db.execute(stmt)
         entries = db_res.scalars().all()
-        existing_entries = {entry.tmdb_id: entry for entry in entries}
+        existing_entries = {_entry_key(entry.tmdb_id, entry.media_type): entry for entry in entries}
 
     active_label = construct_browse_label(target_media, sort_key, parsed_genre_id, year_val)
 
@@ -182,13 +191,15 @@ async def search_titles_partial(
     existing_entries = {}
 
     if tmdb_ids and current_user:
+        # Search results can mix movies and tv shows, so unlike browse we
+        # can't filter on a single media_type here -- key by the pair instead.
         stmt = select(WatchEntry).where(
             WatchEntry.user_id == current_user.id,
             WatchEntry.tmdb_id.in_(tmdb_ids),
         )
         db_res = await db.execute(stmt)
         entries = db_res.scalars().all()
-        existing_entries = {entry.tmdb_id: entry for entry in entries}
+        existing_entries = {_entry_key(entry.tmdb_id, entry.media_type): entry for entry in entries}
 
     return templates.TemplateResponse(
         request=request,
@@ -215,7 +226,8 @@ async def get_title_info_modal(
     if current_user:
         stmt = select(WatchEntry).where(
             WatchEntry.user_id == current_user.id,
-            WatchEntry.tmdb_id == tmdb_id
+            WatchEntry.tmdb_id == tmdb_id,
+            WatchEntry.media_type == media_type,
         )
         res = await db.execute(stmt)
         existing_entry = res.scalar_one_or_none()

@@ -55,6 +55,11 @@ class WatchEntry(Base):
 
     user = relationship("User", back_populates="watch_entries")
 
+    __table_args__ = (
+        # tmdb_id alone isn't unique across movie vs. tv, so pin the pair.
+        UniqueConstraint("user_id", "tmdb_id", "media_type", name="uq_watch_entry_user_title"),
+    )
+
 
 class Recommendation(Base):
     __tablename__ = "recommendations"

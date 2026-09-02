@@ -1,0 +1,23 @@
+<div id="watched-grid-container" class="space-y-4">
+    <!-- Active Filter Summary & Count Header -->
+    <div class="flex items-center justify-between text-xs text-neutral-400 border-b border-neutral-800/60 pb-2">
+        <span>Showing <strong class="text-emerald-400">{{ entries|length }}</strong> titles</span>
+        {% if current_sort == 'release_asc' %}
+            <span class="text-[11px] bg-emerald-950/80 text-emerald-400 border border-emerald-800/60 px-2 py-0.5 rounded font-mono">
+                🎬 Chronological Order (Oldest → Newest)
+            </span>
+        {% endif %}
+    </div>
+
+    <!-- Grid Layout -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {% for entry in entries %}
+            {% include "partials/watched_card.html" %}
+        {% else %}
+            <div class="col-span-full py-16 text-center bg-neutral-900/40 border border-dashed border-neutral-800/80 rounded-2xl">
+                <p class="text-neutral-400 font-medium">No watched items match your active filters.</p>
+                <p class="text-xs text-neutral-500 mt-1">Try clearing your search query or selecting a different genre.</p>
+            </div>
+        {% endfor %}
+    </div>
+</div>

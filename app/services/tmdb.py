@@ -1,5 +1,5 @@
 import time
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 import httpx
 
 from app.config import settings
@@ -90,6 +90,14 @@ class TMDBService:
 
         # Cache discover feeds for 1 hour
         return await self._get(endpoint, params, ttl=3600)
+
+    async def get_trending(self, time_window: str = "week") -> List[Dict[str, Any]]:
+        """Trending movies & TV shows for the homepage rail."""
+        window = time_window if time_window in ("day", "week") else "week"
+        # Refresh a few times a day rather than caching for the full hour like
+        # discover/search, since this is meant to look current on the homepage.
+        data = await self._get(f"/trending/all/{window}", ttl=3600 * 3)
+        return data.get("results", [])
 
     async def get_formatted_details(self, tmdb_id: int, media_type: str) -> Dict[str, Any]:
         target_type = media_type if media_type in ("movie", "tv") else "movie"

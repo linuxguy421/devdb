@@ -3,11 +3,12 @@ from fastapi import APIRouter, Depends, Form, HTTPException, Request, status
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models import User, WatchEntry
-from app.routers.auth import get_current_user
+from app.routers.auth import get_current_user_optional as get_current_user
 from app.services.tmdb import tmdb_service
 
 router = APIRouter(prefix="/watch-entries", tags=["Watch Entries"])
@@ -40,7 +41,11 @@ async def create_watch_entry(
     if not current_user:
         return HTMLResponse(status_code=status.HTTP_401_UNAUTHORIZED, headers={"HX-Redirect": "/login"})
 
-    stmt = select(WatchEntry).where(WatchEntry.user_id == current_user.id, WatchEntry.tmdb_id == tmdb_id)
+    stmt = select(WatchEntry).where(
+        WatchEntry.user_id == current_user.id,
+        WatchEntry.tmdb_id == tmdb_id,
+        WatchEntry.media_type == media_type,
+    )
     result = await db.execute(stmt)
     entry = result.scalar_one_or_none()
 
@@ -50,18 +55,53 @@ async def create_watch_entry(
     else:
         entry.status = status_val
 
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError:
+        # Lost a race with a duplicate submit; fall back to the row that won.
+        await db.rollback()
+        stmt = select(WatchEntry).where(
+            WatchEntry.user_id == current_user.id,
+            WatchEntry.tmdb_id == tmdb_id,
+            WatchEntry.media_type == media_type,
+        )
+        entry = (await db.execute(stmt)).scalar_one()
+        entry.status = status_val
+        await db.commit()
+
     await db.refresh(entry)
 
     toast_oob = render_toast("Added to watchlist!")
 
-    if from_modal == "true":
-        return HTMLResponse(content=f'<div id="modal-container" hx-swap-oob="true"></div>{toast_oob}')
+    if status_val != "watched":
+        # "Want to see" keeps the old, no-modal behavior.
+        if from_modal == "true":
+            return HTMLResponse(content=f'<div id="modal-container" hx-swap-oob="true"></div>{toast_oob}')
+
+        btn_html = templates.get_template("partials/watch_button.html").render(
+            {"request": request, "entry": entry, "tmdb_id": tmdb_id, "media_type": media_type}
+        )
+        return HTMLResponse(content=btn_html + toast_oob)
+
+    # Marked watched: jump straight to the rating/notes modal rather than
+    # leaving the user to go find it themselves afterwards.
+    entry.tmdb_data = await tmdb_service.get_formatted_details(entry.tmdb_id, entry.media_type)
+    edit_modal_html = templates.get_template("partials/edit_modal.html").render(
+        {"request": request, "entry": entry}
+    )
+    modal_oob = f'<div id="modal-container" hx-swap-oob="true">{edit_modal_html}</div>'
 
     btn_html = templates.get_template("partials/watch_button.html").render(
         {"request": request, "entry": entry, "tmdb_id": tmdb_id, "media_type": media_type}
     )
-    return HTMLResponse(content=btn_html + toast_oob)
+    btn_oob = btn_html.replace(f'id="watch-btn-{tmdb_id}"', f'id="watch-btn-{tmdb_id}" hx-swap-oob="true"')
+
+    if from_modal == "true":
+        # Came from the title info modal (which is already open) -- update
+        # the grid card behind it too, so it's correct once the edit modal closes.
+        return HTMLResponse(content=modal_oob + btn_oob + toast_oob)
+
+    return HTMLResponse(content=btn_html + modal_oob + toast_oob)
 
 
 @router.get("/{entry_id}/edit-modal", response_class=HTMLResponse)
@@ -141,6 +181,7 @@ async def update_watch_entry(
 
 @router.post("/{entry_id}/quick-watched", response_class=HTMLResponse)
 async def quick_mark_watched(
+    request: Request,
     entry_id: int,
     db: AsyncSession = Depends(get_db),
     current_user: Optional[User] = Depends(get_current_user),
@@ -156,9 +197,20 @@ async def quick_mark_watched(
 
     entry.status = "watched"
     await db.commit()
+    await db.refresh(entry)
+
+    # Same as create_watch_entry: open the rating/notes modal right away
+    # instead of leaving the user to go find it. The primary target
+    # (#entry-card-{id}) still gets swapped to empty by omission below,
+    # which is what already removes the card from this to-watch list.
+    entry.tmdb_data = await tmdb_service.get_formatted_details(entry.tmdb_id, entry.media_type)
+    edit_modal_html = templates.get_template("partials/edit_modal.html").render(
+        {"request": request, "entry": entry}
+    )
+    modal_oob = f'<div id="modal-container" hx-swap-oob="true">{edit_modal_html}</div>'
 
     toast_oob = render_toast("Marked as watched!")
-    return HTMLResponse(content=toast_oob)
+    return HTMLResponse(content=modal_oob + toast_oob)
 
 
 @router.delete("/{entry_id}", response_class=HTMLResponse)

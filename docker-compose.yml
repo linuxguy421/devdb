@@ -9,15 +9,12 @@ services:
     env_file:
       - .env
     environment:
-      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-devdb}
-      - REDIS_URL=redis://redis:6379/0
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}@postgres:5432/${POSTGRES_DB:-devdb}
       - APP_VERSION=${APP_VERSION:-1.0.0}
     labels:
       - "org.opencontainers.image.version=${APP_VERSION:-1.0.0}"
     depends_on:
       postgres:
-        condition: service_healthy
-      redis:
         condition: service_healthy
     restart: unless-stopped
 
@@ -26,10 +23,8 @@ services:
     image: postgres:16-alpine
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
       POSTGRES_DB: ${POSTGRES_DB:-devdb}
-    ports:
-      - "5432:5432"
     volumes:
       - devdb_postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -40,23 +35,6 @@ services:
       start_period: 45s
     restart: unless-stopped
 
-  redis:
-    container_name: devdb_redis
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
-    volumes:
-      - devdb_redis_data:/data
-    healthcheck:
-      test: ["CMD-SHELL", "redis-cli ping | grep PONG"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
-    restart: unless-stopped
-
 volumes:
   devdb_postgres_data:
     name: devdb_postgres_data
-  devdb_redis_data:
-    name: devdb_redis_data
