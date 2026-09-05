@@ -37,7 +37,7 @@ async def get_or_sync_media_item(
 
     # Fetch updated details from TMDB
     details = await tmdb_service.get_formatted_details(tmdb_id, target_media)
-    if not details or not details.get("title"):
+    if not details or not (details.get("title") or details.get("name")):
         return item
 
     raw_genres = details.get("genres", [])
@@ -47,8 +47,11 @@ async def get_or_sync_media_item(
     else:
         genres_str = str(raw_genres) if raw_genres else None
 
-    title = details.get("title") or details.get("original_title") or ""
+    title = details.get("title") or details.get("name") or details.get("original_title") or ""
     release_date = str(details.get("release_date")) if details.get("release_date") else None
+
+    total_seasons = details.get("number_of_seasons") or details.get("total_seasons")
+    total_episodes = details.get("number_of_episodes") or details.get("total_episodes")
 
     if not item:
         item = MediaItem(
@@ -62,6 +65,9 @@ async def get_or_sync_media_item(
             runtime=details.get("runtime"),
             genres=genres_str,
             vote_average=details.get("vote_average"),
+            total_seasons=total_seasons,
+            total_episodes=total_episodes,
+            last_synced_at=now,
         )
         db.add(item)
     else:
@@ -73,6 +79,9 @@ async def get_or_sync_media_item(
         item.runtime = details.get("runtime", item.runtime)
         item.genres = genres_str or item.genres
         item.vote_average = details.get("vote_average", item.vote_average)
+        item.total_seasons = total_seasons if total_seasons is not None else item.total_seasons
+        item.total_episodes = total_episodes if total_episodes is not None else item.total_episodes
+        item.last_synced_at = now
 
     await db.commit()
     await db.refresh(item)

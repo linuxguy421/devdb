@@ -1,6 +1,17 @@
 from datetime import datetime
 from typing import Optional
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Text, UniqueConstraint, Float
+from sqlalchemy import (
+    Column,
+    Integer,
+    String,
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Text,
+    UniqueConstraint,
+    CheckConstraint,
+    Float,
+)
 from sqlalchemy.orm import relationship, Mapped, mapped_column
 from sqlalchemy.sql import func
 from app.database import Base
@@ -52,9 +63,11 @@ class MediaItem(Base):
     runtime = Column(Integer, nullable=True)
     genres = Column(Text, nullable=True)
     vote_average = Column(Float, nullable=True)
-    last_synced_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    total_seasons = Column(Integer, nullable=True)
+    total_episodes = Column(Integer, nullable=True)
+    last_synced_at = Column(DateTime(timezone=True), server_default=func.now())
 
-    watch_entries = relationship("WatchEntry", back_populates="media_item")
+    watch_entries = relationship("WatchEntry", back_populates="media_item", cascade="all, delete-orphan")
 
     __table_args__ = (
         UniqueConstraint("tmdb_id", "media_type", name="uq_media_item_tmdb_type"),
@@ -66,21 +79,29 @@ class WatchEntry(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    media_item_id = Column(Integer, ForeignKey("media_items.id", ondelete="SET NULL"), nullable=True, index=True)
-    tmdb_id = Column(Integer, nullable=False, index=True)
-    media_type = Column(String, nullable=False, default="movie")
-    poster_path = Column(String, nullable=True)
-    status = Column(String, nullable=False, default="plan_to_watch")
-    rating = Column(Float, nullable=True)
-    notes = Column(String, nullable=True)
+    media_item_id = Column(Integer, ForeignKey("media_items.id", ondelete="CASCADE"), nullable=False, index=True)
+
+    status = Column(String, nullable=False, default="want_to_watch")
+    last_watched_season = Column(Integer, nullable=True)
+    last_watched_episode = Column(Integer, nullable=True)
+
+    rating = Column(Integer, nullable=True)
+    notes = Column(Text, nullable=True)
     is_private = Column(Boolean, default=False, nullable=False)
+
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     user = relationship("User", back_populates="watch_entries")
     media_item = relationship("MediaItem", back_populates="watch_entries")
 
     __table_args__ = (
-        UniqueConstraint("user_id", "tmdb_id", "media_type", name="uq_watch_entry_user_title"),
+        UniqueConstraint("user_id", "media_item_id", name="uq_watch_entry_user_media_item"),
+        CheckConstraint(
+            "(last_watched_season IS NULL AND last_watched_episode IS NULL) OR "
+            "(last_watched_season >= 0 AND last_watched_episode >= 0)",
+            name="ck_watch_entry_progress_valid"
+        ),
     )
 
 
