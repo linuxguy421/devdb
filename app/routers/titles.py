@@ -4,9 +4,10 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.database import get_db
-from app.models import User, WatchEntry
+from app.models import MediaItem, User, WatchEntry
 from app.routers.auth import get_current_user_optional as get_current_user
 from app.services.tmdb import tmdb_service
 
@@ -101,14 +102,23 @@ async def browse_titles_partial(
     existing_entries = {}
 
     if tmdb_ids and current_user:
-        stmt = select(WatchEntry).where(
-            WatchEntry.user_id == current_user.id,
-            WatchEntry.tmdb_id.in_(tmdb_ids),
-            WatchEntry.media_type == target_media,
+        stmt = (
+            select(WatchEntry)
+            .join(MediaItem, WatchEntry.media_item_id == MediaItem.id)
+            .options(selectinload(WatchEntry.media_item))
+            .where(
+                WatchEntry.user_id == current_user.id,
+                MediaItem.tmdb_id.in_(tmdb_ids),
+                MediaItem.media_type == target_media,
+            )
         )
         db_res = await db.execute(stmt)
         entries = db_res.scalars().all()
-        existing_entries = {_entry_key(entry.tmdb_id, entry.media_type): entry for entry in entries}
+        existing_entries = {
+            _entry_key(entry.media_item.tmdb_id, entry.media_item.media_type): entry
+            for entry in entries
+            if entry.media_item
+        }
 
     for item in results:
         m_type = item.get("media_type") or target_media
@@ -194,13 +204,22 @@ async def search_titles_partial(
     existing_entries = {}
 
     if tmdb_ids and current_user:
-        stmt = select(WatchEntry).where(
-            WatchEntry.user_id == current_user.id,
-            WatchEntry.tmdb_id.in_(tmdb_ids),
+        stmt = (
+            select(WatchEntry)
+            .join(MediaItem, WatchEntry.media_item_id == MediaItem.id)
+            .options(selectinload(WatchEntry.media_item))
+            .where(
+                WatchEntry.user_id == current_user.id,
+                MediaItem.tmdb_id.in_(tmdb_ids),
+            )
         )
         db_res = await db.execute(stmt)
         entries = db_res.scalars().all()
-        existing_entries = {_entry_key(entry.tmdb_id, entry.media_type): entry for entry in entries}
+        existing_entries = {
+            _entry_key(entry.media_item.tmdb_id, entry.media_item.media_type): entry
+            for entry in entries
+            if entry.media_item
+        }
 
     for item in media_results:
         m_type = item.get("media_type") or "movie"
@@ -232,13 +251,18 @@ async def get_title_info_modal(
 
     existing_entry = None
     if current_user:
-        stmt = select(WatchEntry).where(
-            WatchEntry.user_id == current_user.id,
-            WatchEntry.tmdb_id == tmdb_id,
-            WatchEntry.media_type == media_type,
+        stmt = (
+            select(WatchEntry)
+            .join(MediaItem, WatchEntry.media_item_id == MediaItem.id)
+            .options(selectinload(WatchEntry.media_item))
+            .where(
+                WatchEntry.user_id == current_user.id,
+                MediaItem.tmdb_id == tmdb_id,
+                MediaItem.media_type == media_type,
+            )
         )
         res = await db.execute(stmt)
-        existing_entry = res.scalar_one_or_none()
+        existing_entry = res.scalars().first()
 
     return templates.TemplateResponse(
         request=request,

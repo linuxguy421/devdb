@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.database import get_db
-from app.models import Friendship, Recommendation, User, WatchEntry
+from app.models import Friendship, MediaItem, Recommendation, User, WatchEntry
 from app.routers.auth import get_current_user
 from app.services.tmdb import tmdb_service
 
@@ -238,6 +238,7 @@ async def buddy_activity_partial(
         stmt_entries = (
             select(WatchEntry, User)
             .join(User, WatchEntry.user_id == User.id)
+            .options(selectinload(WatchEntry.media_item))
             .where(WatchEntry.user_id.in_(buddy_ids))
             .order_by(WatchEntry.created_at.desc())
             .offset(offset)
@@ -248,10 +249,11 @@ async def buddy_activity_partial(
 
         async def fetch_item(entry, user):
             tmdb_data = None
-            if entry.tmdb_id and entry.media_type:
+            media = entry.media_item
+            if media and media.tmdb_id and media.media_type:
                 try:
                     tmdb_data = await asyncio.wait_for(
-                        tmdb_service.get_formatted_details(entry.tmdb_id, entry.media_type),
+                        tmdb_service.get_formatted_details(media.tmdb_id, media.media_type),
                         timeout=2.0
                     )
                 except Exception as err:
@@ -259,11 +261,11 @@ async def buddy_activity_partial(
 
             if not tmdb_data or not tmdb_data.get("title"):
                 tmdb_data = {
-                    "title": f"Media #{entry.tmdb_id}",
-                    "poster_path": entry.poster_path,
+                    "title": f"Media #{media.tmdb_id}" if media else f"Entry #{entry.id}",
+                    "poster_path": media.poster_path if media else None,
                 }
-            elif not tmdb_data.get("poster_path") and entry.poster_path:
-                tmdb_data["poster_path"] = entry.poster_path
+            elif not tmdb_data.get("poster_path") and media and media.poster_path:
+                tmdb_data["poster_path"] = media.poster_path
 
             return {
                 "entry": entry,
@@ -315,34 +317,45 @@ async def get_mutual_watchlist(
             request=request, name="partials/mutual_watchlist.html", context={"mutual_items": []}
         )
 
-    my_stmt = select(WatchEntry).where(
-        WatchEntry.user_id == current_user.id,
-        WatchEntry.status == "to_watch"
+    my_stmt = (
+        select(WatchEntry)
+        .options(selectinload(WatchEntry.media_item))
+        .where(
+            WatchEntry.user_id == current_user.id,
+            WatchEntry.status == "to_watch"
+        )
     )
     my_entries = (await db.execute(my_stmt)).scalars().all()
-    my_keys = {(e.tmdb_id, e.media_type) for e in my_entries}
+    my_keys = {(e.media_item.tmdb_id, e.media_item.media_type) for e in my_entries if e.media_item}
 
     if not my_keys:
         return templates.TemplateResponse(
             request=request, name="partials/mutual_watchlist.html", context={"mutual_items": []}
         )
 
-    buddy_stmt = select(WatchEntry, User).join(User, WatchEntry.user_id == User.id).where(
-        WatchEntry.user_id.in_(buddy_ids),
-        WatchEntry.status == "to_watch"
+    buddy_stmt = (
+        select(WatchEntry, User)
+        .join(User, WatchEntry.user_id == User.id)
+        .options(selectinload(WatchEntry.media_item))
+        .where(
+            WatchEntry.user_id.in_(buddy_ids),
+            WatchEntry.status == "to_watch"
+        )
     )
     results = (await db.execute(buddy_stmt)).all()
 
     # Group buddy usernames by (tmdb_id, media_type)
     grouped_matches = {}
     for entry, buddy in results:
-        key = (entry.tmdb_id, entry.media_type)
+        if not entry.media_item:
+            continue
+        key = (entry.media_item.tmdb_id, entry.media_item.media_type)
         if key in my_keys:
             if key not in grouped_matches:
                 grouped_matches[key] = {
-                    "tmdb_id": entry.tmdb_id,
-                    "media_type": entry.media_type,
-                    "poster_path": entry.poster_path,
+                    "tmdb_id": entry.media_item.tmdb_id,
+                    "media_type": entry.media_item.media_type,
+                    "poster_path": entry.media_item.poster_path,
                     "buddies": [],
                 }
             if buddy.username not in grouped_matches[key]["buddies"]:
