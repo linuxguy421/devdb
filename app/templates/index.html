@@ -1,223 +1,173 @@
-<!DOCTYPE html>
-<html lang="en" class="h-full bg-neutral-950 text-neutral-100 selection:bg-emerald-500 selection:text-neutral-950">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DevDB - Search & Dashboard</title>
-    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
-    <script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body class="min-h-screen flex flex-col font-sans antialiased bg-neutral-950 text-neutral-100">
+{% extends "base.html" %}
 
-    <nav class="sticky top-0 z-40 bg-neutral-900/90 backdrop-blur-md border-b border-neutral-800/80 px-6 py-3.5">
-        <div class="max-w-7xl mx-auto flex justify-between items-center">
-            <div class="flex items-center space-x-8">
-                <a href="/" class="flex items-center space-x-2">
-                    <img src="/static/img/logo.png" alt="Logo" class="h-8 w-auto object-contain">
-                </a>
-                <div class="flex items-center space-x-2 text-sm font-semibold">
-                    <a href="/" class="px-4 py-1.5 rounded-full bg-neutral-800 text-white border border-neutral-700/50 shadow-sm transition-all duration-200">Home</a>
-                    <a href="/to-watch" class="px-4 py-1.5 rounded-full {% if request.url.path == '/to-watch' %}bg-neutral-800 text-white border border-neutral-700/50 shadow-sm{% else %}text-neutral-400 hover:text-white hover:bg-neutral-800/60{% endif %} transition-all duration-200">Want To Watch</a>
-                    <a href="/watched" class="px-4 py-1.5 rounded-full text-neutral-400 hover:text-white hover:bg-neutral-800/60 transition-all duration-200">Watched</a>
+{% block title %}DevDB - Search & Dashboard{% endblock %}
+
+{% block content %}
+<div class="space-y-8">
+    <!-- Search & Filter Controls -->
+    <section class="space-y-4">
+        <div>
+            <h1 class="text-3xl font-extrabold text-white tracking-tight">
+                {% if current_user %}Welcome back, {{ current_user.username }}{% else %}Discover & Track Movies{% endif %}
+            </h1>
+            <p class="text-sm text-neutral-400 mt-1">Search TMDB directly or combine filters to explore specific genres and eras.</p>
+        </div>
+
+        <!-- Search Bar -->
+        <div class="relative">
+            <input type="text"
+                   id="search-input"
+                   name="q"
+                   placeholder="Search movies or TV shows..."
+                   hx-get="/titles/search-partial"
+                   hx-trigger="keyup changed delay:300ms, search"
+                   hx-target="#search-results"
+                   class="w-full bg-neutral-900 border border-neutral-800 text-white rounded-xl px-5 py-3.5 pl-12 text-sm focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none shadow-lg shadow-black/40 placeholder-neutral-500 transition-all">
+            <svg class="w-5 h-5 text-neutral-500 absolute left-4 top-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+            </svg>
+        </div>
+
+        <!-- Filter Controls -->
+        <form id="filter-form"
+              hx-get="/titles/search-partial"
+              hx-include="#search-input"
+              hx-target="#search-results"
+              class="bg-neutral-900/80 border border-neutral-800 p-3.5 rounded-2xl flex flex-wrap gap-3 items-center text-xs">
+
+            <span class="text-neutral-400 font-bold uppercase tracking-wider text-[11px] pr-1">Filter By:</span>
+
+            <!-- Type -->
+            <select name="media_type"
+                    class="bg-neutral-800 border border-neutral-700/70 text-neutral-200 rounded-lg px-3 py-1.5 focus:border-emerald-500 outline-none cursor-pointer">
+                <option value="">All Types</option>
+                <option value="movie">Movies</option>
+                <option value="tv">TV Series</option>
+            </select>
+
+            <!-- Genre -->
+            <select name="genre_id"
+                    class="bg-neutral-800 border border-neutral-700/70 text-neutral-200 rounded-lg px-3 py-1.5 focus:border-emerald-500 outline-none cursor-pointer">
+                <option value="">All Genres</option>
+                <option value="28">Action</option>
+                <option value="12">Adventure</option>
+                <option value="16">Animation</option>
+                <option value="35">Comedy</option>
+                <option value="80">Crime</option>
+                <option value="99">Documentary</option>
+                <option value="18">Drama</option>
+                <option value="14">Fantasy</option>
+                <option value="27">Horror</option>
+                <option value="9648">Mystery</option>
+                <option value="10749">Romance</option>
+                <option value="878">Sci-Fi</option>
+                <option value="53">Thriller</option>
+            </select>
+
+            <!-- Year / Era -->
+            <select name="year_filter"
+                    class="bg-neutral-800 border border-neutral-700/70 text-neutral-200 rounded-lg px-3 py-1.5 focus:border-emerald-500 outline-none cursor-pointer">
+                <option value="">All Time</option>
+                <optgroup label="Decades">
+                    <option value="decade_2020s">2020s</option>
+                    <option value="decade_2010s">2010s</option>
+                    <option value="decade_2000s">2000s</option>
+                    <option value="decade_1990s">1990s</option>
+                    <option value="decade_1980s">1980s</option>
+                    <option value="decade_1970s">1970s</option>
+                    <option value="decade_1960s">1960s</option>
+                    <option value="decade_1950s">1950s</option>
+                </optgroup>
+                <optgroup label="Specific Year">
+                    {% for y in range(2026, 1887, -1) %}
+                        <option value="{{ y }}">{{ y }}</option>
+                    {% endfor %}
+                </optgroup>
+            </select>
+
+            <!-- Sort Order -->
+            <select name="sort_by"
+                    class="bg-neutral-800 border border-neutral-700/70 text-neutral-200 rounded-lg px-3 py-1.5 focus:border-emerald-500 outline-none cursor-pointer">
+                <option value="popularity.desc">Most Popular</option>
+                <option value="vote_average.desc">Top Rated</option>
+                <option value="primary_release_date.desc">Release Date (Newest)</option>
+                <option value="primary_release_date.asc">Release Date (Oldest)</option>
+            </select>
+
+            <!-- Apply To Search Button -->
+            <button type="submit"
+                    class="ml-auto bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-bold px-4 py-1.5 rounded-lg transition-all shadow-md shadow-emerald-950/40 cursor-pointer">
+                Apply To Search
+            </button>
+        </form>
+    </section>
+
+    <!-- Dynamic Results Grid -->
+    <section id="search-results"
+             hx-get="/titles/browse-partial?media_type=movie&sort_by=popularity.desc"
+             hx-trigger="load"
+             class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+    </section>
+
+    <!-- Buddy Activity Feed -->
+    <section class="space-y-4 pt-4 border-t border-neutral-800/60">
+        <div class="flex justify-between items-center">
+            <div class="flex items-center space-x-2">
+                <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/>
+                </svg>
+                <h2 class="text-xl font-bold text-white tracking-tight">Buddy Activity</h2>
+            </div>
+            {% if current_user %}
+            <button hx-get="/buddies/modal" hx-target="#modal-container" hx-swap="innerHTML" class="inline-flex items-center space-x-2 text-xs font-bold text-emerald-400 hover:underline">
+                <span>Manage Buddies</span>
+                {% if pending_buddies_count and pending_buddies_count > 0 %}
+                <span class="flex h-4 min-w-[1rem] px-1 items-center justify-center rounded-full bg-amber-400 text-[10px] font-black text-neutral-950 animate-pulse">
+                    {{ pending_buddies_count }}
+                </span>
+                {% endif %}
+            </button>
+            {% endif %}
+        </div>
+
+        {% if current_user %}
+            <div hx-get="/buddies/activity-partial" hx-trigger="load" hx-swap="innerHTML">
+                <div class="flex space-x-4 overflow-x-hidden">
+                    <div class="w-64 h-28 bg-neutral-900 border border-neutral-800 rounded-xl animate-pulse"></div>
+                    <div class="w-64 h-28 bg-neutral-900 border border-neutral-800 rounded-xl animate-pulse"></div>
                 </div>
             </div>
-            <div class="flex items-center space-x-4">
-                {% if current_user %}
-                    <button type="button"
-                            hx-get="/profile/edit-modal"
-                            hx-target="#modal-container"
-                            hx-swap="innerHTML"
-                            class="flex items-center space-x-3 bg-neutral-900/80 hover:bg-neutral-800 border border-neutral-800 hover:border-neutral-700 rounded-full px-3.5 py-1.5 transition cursor-pointer"
-                            title="Edit Profile">
-                        {% if current_user.avatar_url %}
-                        <img src="{{ current_user.avatar_url }}" alt="{{ current_user.username }}" class="w-6 h-6 rounded-full object-cover border border-emerald-500/60">
-                        {% else %}
-                        <div class="w-6 h-6 rounded-full bg-emerald-500 flex items-center justify-center text-neutral-950 font-extrabold text-xs uppercase">
-                            {{ current_user.username[0] if current_user.username else 'U' }}
-                        </div>
-                        {% endif %}
-                        <span class="text-xs font-semibold text-neutral-300 hover:text-white transition">{{ current_user.username }}</span>
-                    </button>
-                    <a href="/logout" class="text-xs font-semibold text-neutral-400 hover:text-red-400 transition">Logout</a>
-                {% else %}
-                    <a href="/login" class="text-sm font-semibold text-neutral-300 hover:text-white transition">Log In</a>
-                    <a href="/register" class="text-sm font-extrabold bg-emerald-500 text-neutral-950 hover:bg-emerald-400 px-4 py-1.5 rounded-full shadow-lg shadow-emerald-950/40 transition">Register</a>
-                {% endif %}
+        {% else %}
+            <div class="p-6 bg-neutral-900/60 border border-neutral-800 rounded-2xl text-center space-y-3">
+                <p class="text-xs text-neutral-400">Log in or create an account to view activity from your buddies.</p>
+                <div class="flex justify-center gap-3">
+                    <a href="/login" class="px-4 py-1.5 text-xs font-bold bg-neutral-800 hover:bg-neutral-700 text-white rounded-full transition">Log In</a>
+                    <a href="/register" class="px-4 py-1.5 text-xs font-bold bg-emerald-500 hover:bg-emerald-400 text-neutral-950 rounded-full transition">Register</a>
+                </div>
+            </div>
+        {% endif %}
+    </section>
+
+    <!-- Mutual Watchlist Matches -->
+    <section class="space-y-4 pt-4 border-t border-neutral-800/60">
+        <div class="flex justify-between items-center">
+            <div class="flex items-center space-x-2">
+                <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/>
+                </svg>
+                <h2 class="text-xl font-bold text-white tracking-tight">Mutual Watchlist Matches</h2>
             </div>
         </div>
-    </nav>
 
-    <main class="flex-1 max-w-7xl w-full mx-auto px-6 py-8 space-y-8">
-        <!-- Search & Filter Controls -->
-        <section class="space-y-4">
-            <div>
-                <h1 class="text-3xl font-extrabold text-white tracking-tight">
-                    {% if current_user %}Welcome back, {{ current_user.username }}{% else %}Discover & Track Movies{% endif %}
-                </h1>
-                <p class="text-sm text-neutral-400 mt-1">Search TMDB directly or combine filters to explore specific genres and eras.</p>
+        {% if current_user %}
+            <div hx-get="/buddies/mutual-watchlist" hx-trigger="load" hx-swap="innerHTML">
+                <div class="h-24 bg-neutral-900 border border-neutral-800 rounded-xl animate-pulse"></div>
             </div>
-
-            <!-- Search Bar -->
-            <div class="relative">
-                <input type="text"
-                       id="search-input"
-                       name="q"
-                       placeholder="Search movies or TV shows..."
-                       hx-get="/titles/search-partial"
-                       hx-trigger="keyup changed delay:300ms, search"
-                       hx-target="#search-results"
-                       class="w-full bg-neutral-900 border border-neutral-800 text-white rounded-xl px-5 py-3.5 pl-12 text-sm focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none shadow-lg shadow-black/40 placeholder-neutral-500 transition-all">
-                <svg class="w-5 h-5 text-neutral-500 absolute left-4 top-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
-                </svg>
+        {% else %}
+            <div class="p-6 bg-neutral-900/60 border border-neutral-800 rounded-2xl text-center">
+                <p class="text-xs text-neutral-400">Log in to compare watchlists with friends.</p>
             </div>
-
-            <!-- Filter Controls -->
-            <form id="filter-form"
-                  hx-get="/titles/search-partial"
-                  hx-include="#search-input"
-                  hx-target="#search-results"
-                  class="bg-neutral-900/80 border border-neutral-800 p-3.5 rounded-2xl flex flex-wrap gap-3 items-center text-xs">
-
-                <span class="text-neutral-400 font-bold uppercase tracking-wider text-[11px] pr-1">Filter By:</span>
-
-                <!-- Type -->
-                <select name="media_type"
-                        class="bg-neutral-800 border border-neutral-700/70 text-neutral-200 rounded-lg px-3 py-1.5 focus:border-emerald-500 outline-none cursor-pointer">
-                    <option value="">All Types</option>
-                    <option value="movie">Movies</option>
-                    <option value="tv">TV Series</option>
-                </select>
-
-                <!-- Genre -->
-                <select name="genre_id"
-                        class="bg-neutral-800 border border-neutral-700/70 text-neutral-200 rounded-lg px-3 py-1.5 focus:border-emerald-500 outline-none cursor-pointer">
-                    <option value="">All Genres</option>
-                    <option value="28">Action</option>
-                    <option value="12">Adventure</option>
-                    <option value="16">Animation</option>
-                    <option value="35">Comedy</option>
-                    <option value="80">Crime</option>
-                    <option value="99">Documentary</option>
-                    <option value="18">Drama</option>
-                    <option value="14">Fantasy</option>
-                    <option value="27">Horror</option>
-                    <option value="9648">Mystery</option>
-                    <option value="10749">Romance</option>
-                    <option value="878">Sci-Fi</option>
-                    <option value="53">Thriller</option>
-                </select>
-
-                <!-- Year / Era -->
-                <select name="year_filter"
-                        class="bg-neutral-800 border border-neutral-700/70 text-neutral-200 rounded-lg px-3 py-1.5 focus:border-emerald-500 outline-none cursor-pointer">
-                    <option value="">All Time</option>
-                    <optgroup label="Decades">
-                        <option value="decade_2020s">2020s</option>
-                        <option value="decade_2010s">2010s</option>
-                        <option value="decade_2000s">2000s</option>
-                        <option value="decade_1990s">1990s</option>
-                        <option value="decade_1980s">1980s</option>
-                        <option value="decade_1970s">1970s</option>
-                        <option value="decade_1960s">1960s</option>
-                        <option value="decade_1950s">1950s</option>
-                    </optgroup>
-                    <optgroup label="Specific Year">
-                        {% for y in range(2026, 1887, -1) %}
-                            <option value="{{ y }}">{{ y }}</option>
-                        {% endfor %}
-                    </optgroup>
-                </select>
-
-                <!-- Sort Order -->
-                <select name="sort_by"
-                        class="bg-neutral-800 border border-neutral-700/70 text-neutral-200 rounded-lg px-3 py-1.5 focus:border-emerald-500 outline-none cursor-pointer">
-                    <option value="popularity.desc">Most Popular</option>
-                    <option value="vote_average.desc">Top Rated</option>
-                    <option value="primary_release_date.desc">Release Date (Newest)</option>
-                    <option value="primary_release_date.asc">Release Date (Oldest)</option>
-                </select>
-
-                <!-- Apply To Search Button -->
-                <button type="submit"
-                        class="ml-auto bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-bold px-4 py-1.5 rounded-lg transition-all shadow-md shadow-emerald-950/40 cursor-pointer">
-                    Apply To Search
-                </button>
-            </form>
-        </section>
-
-        <!-- Dynamic Results Grid -->
-        <section id="search-results"
-                 hx-get="/titles/browse-partial?media_type=movie&sort_by=popularity.desc"
-                 hx-trigger="load"
-                 class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        </section>
-
-        <!-- Buddy Activity Feed -->
-        <section class="space-y-4 pt-4 border-t border-neutral-800/60">
-            <div class="flex justify-between items-center">
-                <div class="flex items-center space-x-2">
-                    <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/>
-                    </svg>
-                    <h2 class="text-xl font-bold text-white tracking-tight">Buddy Activity</h2>
-                </div>
-                {% if current_user %}
-                <button hx-get="/buddies/modal" hx-target="#modal-container" hx-swap="innerHTML" class="inline-flex items-center space-x-2 text-xs font-bold text-emerald-400 hover:underline">
-                    <span>Manage Buddies</span>
-                    {% if pending_buddies_count and pending_buddies_count > 0 %}
-                    <span class="flex h-4 min-w-[1rem] px-1 items-center justify-center rounded-full bg-amber-400 text-[10px] font-black text-neutral-950 animate-pulse">
-                        {{ pending_buddies_count }}
-                    </span>
-                    {% endif %}
-                </button>
-                {% endif %}
-            </div>
-
-            {% if current_user %}
-                <div hx-get="/buddies/activity-partial" hx-trigger="load" hx-swap="innerHTML">
-                    <div class="flex space-x-4 overflow-x-hidden">
-                        <div class="w-64 h-28 bg-neutral-900 border border-neutral-800 rounded-xl animate-pulse"></div>
-                        <div class="w-64 h-28 bg-neutral-900 border border-neutral-800 rounded-xl animate-pulse"></div>
-                    </div>
-                </div>
-            {% else %}
-                <div class="p-6 bg-neutral-900/60 border border-neutral-800 rounded-2xl text-center space-y-3">
-                    <p class="text-xs text-neutral-400">Log in or create an account to view activity from your buddies.</p>
-                    <div class="flex justify-center gap-3">
-                        <a href="/login" class="px-4 py-1.5 text-xs font-bold bg-neutral-800 hover:bg-neutral-700 text-white rounded-full transition">Log In</a>
-                        <a href="/register" class="px-4 py-1.5 text-xs font-bold bg-emerald-500 hover:bg-emerald-400 text-neutral-950 rounded-full transition">Register</a>
-                    </div>
-                </div>
-            {% endif %}
-        </section>
-
-        <!-- Mutual Watchlist Matches -->
-        <section class="space-y-4 pt-4 border-t border-neutral-800/60">
-            <div class="flex justify-between items-center">
-                <div class="flex items-center space-x-2">
-                    <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/>
-                    </svg>
-                    <h2 class="text-xl font-bold text-white tracking-tight">Mutual Watchlist Matches</h2>
-                </div>
-            </div>
-
-            {% if current_user %}
-                <div hx-get="/buddies/mutual-watchlist" hx-trigger="load" hx-swap="innerHTML">
-                    <div class="h-24 bg-neutral-900 border border-neutral-800 rounded-xl animate-pulse"></div>
-                </div>
-            {% else %}
-                <div class="p-6 bg-neutral-900/60 border border-neutral-800 rounded-2xl text-center">
-                    <p class="text-xs text-neutral-400">Log in to compare watchlists with friends.</p>
-                </div>
-            {% endif %}
-        </section>
-    </main>
-
-    <div id="modal-container"></div>
-    <footer class="py-8 text-center text-xs text-neutral-500">
-        <p>Made with <span class="text-rose-500 font-bold">&lt;3</span> for Devin</p>
-    </footer>
-</body>
-</html>
+        {% endif %}
+    </section>
+</div>
+{% endblock %}

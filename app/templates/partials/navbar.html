@@ -1,0 +1,65 @@
+<nav class="sticky top-0 z-40 bg-neutral-900/90 backdrop-blur-md border-b border-neutral-800/80 px-6 py-3.5">
+    <div class="max-w-7xl mx-auto flex justify-between items-center">
+
+        <!-- Logo & Brand -->
+        <div class="flex items-center space-x-8">
+            <a href="/" class="flex items-center space-x-2 font-black text-lg text-white tracking-tight hover:text-emerald-400 transition-colors">
+                <img src="/static/img/logo.png" alt="DevDB Logo" class="h-8 w-auto object-contain" onerror="this.onerror=null; this.remove();">
+                <span class="font-bold text-lg text-white tracking-tight">DevDB</span>
+            </a>
+
+            <!-- Main Nav Links -->
+            <div class="hidden md:flex items-center space-x-2 text-sm font-semibold">
+                <a href="/"
+                   class="px-4 py-2 rounded-full transition-all duration-200 {% if request.url.path == '/' or request.url.path.startswith('/titles') %}bg-neutral-800 text-white shadow-sm{% else %}text-neutral-400 hover:text-white hover:bg-neutral-800/50{% endif %}">
+                    Search
+                </a>
+                <a href="/my-media"
+                   class="px-4 py-2 rounded-full transition-all duration-200 {% if request.url.path.startswith('/my-media') %}bg-neutral-800 text-white shadow-sm{% else %}text-neutral-400 hover:text-white hover:bg-neutral-800/50{% endif %}">
+                    My Media
+                </a>
+            </div>
+        </div>
+
+        <!-- User Controls & Profile -->
+        <div class="flex items-center space-x-3">
+            {% if current_user %}
+                <!-- Buddy Management Trigger -->
+                <button hx-get="/buddies/modal"
+                        hx-target="#modal-container"
+                        hx-swap="innerHTML"
+                        class="inline-flex items-center space-x-2 px-3.5 py-1.5 rounded-full text-xs font-semibold bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 text-neutral-300 hover:text-white transition cursor-pointer"
+                        title="Manage Buddies">
+                    <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/>
+                    </svg>
+                    <span>Buddies</span>
+                </button>
+
+                <!-- Profile Edit Modal Trigger -->
+                <button type="button"
+                        hx-get="/profile/edit-modal"
+                        hx-target="#modal-container"
+                        hx-swap="innerHTML"
+                        class="flex items-center space-x-3 bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 rounded-full px-3.5 py-1.5 transition-all cursor-pointer"
+                        title="Edit Profile">
+                    {% if current_user.avatar_url %}
+                        <img src="{{ current_user.avatar_url }}" alt="{{ current_user.username }}" class="w-6 h-6 rounded-full object-cover border border-emerald-500/60">
+                    {% else %}
+                        <div class="w-6 h-6 rounded-full bg-emerald-500 flex items-center justify-center text-neutral-950 font-bold text-xs uppercase">
+                            {{ current_user.username[0] if current_user.username else 'U' }}
+                        </div>
+                    {% endif %}
+                    <span class="text-sm font-medium text-neutral-200">{{ current_user.username }}</span>
+                </button>
+
+                <a href="/logout" class="text-xs font-semibold text-neutral-400 hover:text-red-400 px-3 py-1.5 rounded-full hover:bg-neutral-900 transition">
+                    Logout
+                </a>
+            {% else %}
+                <a href="/login" class="text-sm font-semibold text-neutral-300 hover:text-white transition">Log In</a>
+                <a href="/register" class="text-sm font-extrabold bg-emerald-500 text-neutral-950 hover:bg-emerald-400 px-4 py-1.5 rounded-full shadow-lg shadow-emerald-950/40 transition">Sign Up</a>
+            {% endif %}
+        </div>
+    </div>
+</nav>
