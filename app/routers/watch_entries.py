@@ -163,6 +163,37 @@ def render_entry_response(
     )
 
 
+@router.get("/{entry_id}/edit-modal", response_class=HTMLResponse)
+async def get_edit_modal(
+    request: Request,
+    entry_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user),
+):
+    if not current_user:
+        return HTMLResponse(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            headers={"HX-Redirect": "/login"},
+        )
+
+    entry = await get_entry(db, entry_id, current_user.id)
+    if not entry:
+        raise HTTPException(
+            status_code=404,
+            detail="Watch entry not found",
+        )
+
+    return templates.TemplateResponse(
+        request=request,
+        name="partials/edit_modal.html",
+        context={
+            "request": request,
+            "entry": entry,
+            "current_user": current_user,
+        },
+    )
+
+
 @router.post("", response_class=HTMLResponse)
 @router.post("/add", response_class=HTMLResponse)
 async def create_watch_entry(
@@ -283,9 +314,6 @@ async def update_watch_entry(
             detail="Watch entry not found",
         )
 
-    # --------------------------------------------------------------
-    # Status
-    # --------------------------------------------------------------
     if status_val is not None:
         if status_val not in VALID_STATUSES:
             raise HTTPException(
@@ -295,9 +323,6 @@ async def update_watch_entry(
 
         entry.status = status_val
 
-    # --------------------------------------------------------------
-    # Rating
-    # --------------------------------------------------------------
     if rating is not None:
         rating_num = safe_int(rating)
 
@@ -309,25 +334,16 @@ async def update_watch_entry(
 
         entry.rating = rating_num
 
-    # --------------------------------------------------------------
-    # Review / notes
-    # --------------------------------------------------------------
     if notes is not None:
         cleaned_notes = notes.strip()
         entry.notes = cleaned_notes or None
 
-    # --------------------------------------------------------------
-    # Privacy
-    # --------------------------------------------------------------
     if is_private is not None:
         entry.is_private = (
             str(is_private).lower()
             in ("true", "1", "on", "yes")
         )
 
-    # --------------------------------------------------------------
-    # TV progress
-    # --------------------------------------------------------------
     is_tv = (
         entry.media_item is not None
         and entry.media_item.media_type == "tv"
@@ -367,9 +383,6 @@ async def update_watch_entry(
     await db.commit()
     await db.refresh(entry)
 
-    # --------------------------------------------------------------
-    # Safely fetch TMDB details for modal re-render with fallback
-    # --------------------------------------------------------------
     try:
         tmdb_data = await tmdb_service.get_formatted_details(
             entry.media_item.tmdb_id,
@@ -379,7 +392,7 @@ async def update_watch_entry(
         tmdb_data = {}
 
     modal_html = templates.get_template(
-        "partials/title_info_modal.html"
+        "partials/info_modal.html"
     ).render(
         {
             "request": request,
@@ -507,7 +520,6 @@ async def action_increment_progress(
         if episode_numbers:
             season_episode_counts[season_number] = max(episode_numbers)
 
-    # Fallback to local MediaItem metadata if TMDB season details fail or are unavailable
     if not season_episode_counts and entry.media_item.total_seasons and entry.media_item.total_episodes:
         eps_per_season = max(1, entry.media_item.total_episodes // entry.media_item.total_seasons)
         season_episode_counts = {s: eps_per_season for s in range(1, entry.media_item.total_seasons + 1)}

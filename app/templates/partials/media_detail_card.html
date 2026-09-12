@@ -1,0 +1,120 @@
+<div class="bg-neutral-900 border border-neutral-800 rounded-2xl overflow-hidden shadow-2xl shadow-black/80 max-w-4xl w-full">
+    
+    <!-- Hero / Backdrop Header -->
+    <div class="relative h-64 md:h-80 w-full bg-neutral-950 overflow-hidden">
+        {% if item.backdrop_path %}
+            <img src="https://image.tmdb.org/t/p/w1280{{ item.backdrop_path }}" 
+                 alt="{{ item.title }}" 
+                 class="w-full h-full object-cover opacity-40">
+        {% endif %}
+        <div class="absolute inset-0 bg-gradient-to-t from-neutral-900 via-neutral-900/60 to-transparent"></div>
+        
+        <!-- Header Overlay Meta -->
+        <div class="absolute bottom-6 left-6 right-6 flex items-end justify-between gap-4">
+            <div class="space-y-1">
+                {% if item.tagline %}
+                    <p class="text-xs font-semibold text-emerald-400 italic tracking-wide">"{{ item.tagline }}"</p>
+                {% endif %}
+                <h2 class="text-2xl md:text-3xl font-black text-white tracking-tight">{{ item.title }}</h2>
+                <div class="flex flex-wrap items-center gap-2 text-xs text-neutral-400 font-medium">
+                    <span>{{ item.release_date[:4] if item.release_date else 'N/A' }}</span>
+                    <span>•</span>
+                    <span>{{ item.runtime }} min</span>
+                    <span>•</span>
+                    <span class="bg-neutral-800/80 border border-neutral-700/60 text-neutral-300 px-2 py-0.5 rounded-md text-[11px]">
+                        {{ item.media_type | upper }}
+                    </span>
+                    {% if item.status %}
+                        <span class="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-md text-[11px] font-semibold">
+                            {{ item.status }}
+                        </span>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Score Badge -->
+            {% if item.vote_average %}
+                <div class="shrink-0 bg-neutral-950/80 border border-neutral-800 px-3 py-2 rounded-xl text-center">
+                    <span class="block text-lg font-black text-amber-400">★ {{ "%.1f"|format(item.vote_average) }}</span>
+                    <span class="text-[10px] font-bold text-neutral-500 uppercase tracking-wider">TMDB Score</span>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="p-6 space-y-6">
+
+        <!-- Financial & Spending Breakdown Banner -->
+        {% if item.budget or item.revenue %}
+        <div>
+            <h4 class="text-xs font-bold uppercase tracking-wider text-neutral-400 mb-3">Financial Overview & Box Office</h4>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                
+                <!-- Budget -->
+                <div class="bg-neutral-950/70 border border-neutral-800/90 p-3.5 rounded-xl">
+                    <span class="block text-[11px] font-bold text-neutral-500 uppercase tracking-wider mb-1">Production Budget</span>
+                    {% if item.budget and item.budget > 0 %}
+                        <span class="text-lg font-extrabold text-white font-mono">${{ "{:,}".format(item.budget) }}</span>
+                    {% else %}
+                        <span class="text-sm font-semibold text-neutral-500 italic">Undisclosed</span>
+                    {% endif %}
+                </div>
+
+                <!-- Revenue -->
+                <div class="bg-neutral-950/70 border border-neutral-800/90 p-3.5 rounded-xl">
+                    <span class="block text-[11px] font-bold text-neutral-500 uppercase tracking-wider mb-1">Worldwide Box Office</span>
+                    {% if item.revenue and item.revenue > 0 %}
+                        <span class="text-lg font-extrabold text-emerald-400 font-mono">${{ "{:,}".format(item.revenue) }}</span>
+                    {% else %}
+                        <span class="text-sm font-semibold text-neutral-500 italic">N/A</span>
+                    {% endif %}
+                </div>
+
+                <!-- Return / Margin -->
+                <div class="bg-neutral-950/70 border border-neutral-800/90 p-3.5 rounded-xl">
+                    <span class="block text-[11px] font-bold text-neutral-500 uppercase tracking-wider mb-1">Est. Return</span>
+                    {% if item.budget and item.revenue and item.budget > 0 %}
+                        {% set roi = ((item.revenue - item.budget) / item.budget) * 100 %}
+                        <span class="text-lg font-extrabold font-mono {{ 'text-emerald-400' if roi >= 0 else 'text-rose-400' }}">
+                            {{ "{:+.1f}".format(roi) }}%
+                        </span>
+                    {% else %}
+                        <span class="text-sm font-semibold text-neutral-500 italic">Insufficient Data</span>
+                    {% endif %}
+                </div>
+
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Synopsis -->
+        <div>
+            <h4 class="text-xs font-bold uppercase tracking-wider text-neutral-400 mb-2">Overview</h4>
+            <p class="text-sm text-neutral-300 leading-relaxed">{{ item.overview or 'No synopsis available.' }}</p>
+        </div>
+
+        <!-- Genres & Production Details -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-neutral-800/80">
+            <div>
+                <h4 class="text-xs font-bold uppercase tracking-wider text-neutral-400 mb-2">Genres</h4>
+                <div class="flex flex-wrap gap-1.5">
+                    {% for genre in (item.genres or '').split(',') %}
+                        {% if genre.strip() %}
+                            <span class="bg-neutral-800 text-neutral-300 text-xs px-2.5 py-1 rounded-lg border border-neutral-700/50">
+                                {{ genre.strip() }}
+                            </span>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+
+            {% if item.production_companies %}
+            <div>
+                <h4 class="text-xs font-bold uppercase tracking-wider text-neutral-400 mb-2">Production Companies</h4>
+                <p class="text-xs text-neutral-300 font-medium leading-relaxed">{{ item.production_companies }}</p>
+            </div>
+            {% endif %}
+        </div>
+
+    </div>
+</div>

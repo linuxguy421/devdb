@@ -141,6 +141,15 @@ class MediaItem(Base):
         cascade="all, delete-orphan",
     )
 
+# Financial & Status Metadata
+    budget = Column(Integer, nullable=True)  # USD
+    revenue = Column(Integer, nullable=True)  # USD
+    status = Column(String(50), nullable=True)  # e.g., "Released", "In Production"
+    tagline = Column(Text, nullable=True)
+    production_companies = Column(
+        Text, nullable=True
+    )  # Comma-separated or JSON string
+
     __table_args__ = (
         UniqueConstraint(
             "tmdb_id",

@@ -273,7 +273,7 @@ async def get_title_info_modal(
 
     return templates.TemplateResponse(
         request=request,
-        name="partials/title_info_modal.html",
+        name="partials/info_modal.html",
         context={
             "request": request,
             "tmdb_data": tmdb_data,

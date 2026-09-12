@@ -1,25 +1,147 @@
-<div id="info-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm">
-    <div class="bg-white rounded-xl shadow-2xl max-w-lg w-full mx-4 overflow-hidden flex flex-col max-h-[90vh]">
-        
-        <div class="p-6 overflow-y-auto">
-            <h2 class="text-2xl font-bold text-gray-900 mb-2">{{ title }}</h2>
-            
-            <div class="flex space-x-4 text-sm text-gray-500 mb-4 border-b pb-4">
-                <span>⭐ {{ vote_average }}/10</span>
-                <span>📅 {{ release_date }}</span>
+{% set m_item = existing_entry.media_item if existing_entry and existing_entry.media_item else None %}
+{% set t_data = tmdb_data or {} %}
+
+{% set backdrop = m_item.backdrop_path if m_item and m_item.backdrop_path else t_data.backdrop_path %}
+{% set poster = m_item.poster_path if m_item and m_item.poster_path else t_data.poster_path %}
+{% set title_str = m_item.title if m_item and m_item.title else (t_data.title or 'Title Unavailable') %}
+{% set release_val = m_item.release_date if m_item and m_item.release_date else (t_data.release_date or t_data.year) %}
+{% set overview_text = m_item.overview if m_item and m_item.overview else t_data.overview %}
+
+<div id="info-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-3 sm:p-6 animate-in fade-in duration-200">
+    <div class="absolute inset-0" onclick="document.getElementById('info-modal')?.remove()"></div>
+
+    <div class="relative bg-neutral-900 border border-neutral-800 rounded-2xl max-w-4xl w-full overflow-hidden shadow-2xl z-10 flex flex-col max-h-[92vh]">
+
+        <!-- Hero Backdrop Header -->
+        <div class="relative w-full h-48 sm:h-64 bg-neutral-950 overflow-hidden shrink-0 border-b border-neutral-800">
+            {% if backdrop %}
+                {% if backdrop.startswith('http') or backdrop.startswith('/static') %}
+                    <img src="{{ backdrop }}" alt="Backdrop" class="w-full h-full object-cover opacity-40 blur-[1px]">
+                {% else %}
+                    <img src="https://image.tmdb.org/t/p/w1280{{ backdrop }}" alt="Backdrop" class="w-full h-full object-cover opacity-40 blur-[1px]">
+                {% endif %}
+            {% endif %}
+            <div class="absolute inset-0 bg-gradient-to-t from-neutral-900 via-neutral-900/60 to-transparent"></div>
+
+            <button type="button" onclick="document.getElementById('info-modal')?.remove()"
+                    class="absolute top-4 right-4 z-30 text-neutral-400 hover:text-white bg-neutral-950/80 hover:bg-neutral-800 p-2 rounded-full border border-neutral-700/60 transition cursor-pointer">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+
+            <div class="absolute bottom-4 left-4 right-4 sm:left-6 sm:right-6 flex items-end gap-5 z-20">
+                <div class="w-24 sm:w-32 h-36 sm:h-48 bg-neutral-950 rounded-xl overflow-hidden shrink-0 border-2 border-neutral-800 shadow-2xl hidden sm:block">
+                    {% if poster %}
+                        {% if poster.startswith('http') or poster.startswith('/static') %}
+                            <img src="{{ poster }}" alt="{{ title_str }}" class="w-full h-full object-cover">
+                        {% else %}
+                            <img src="https://image.tmdb.org/t/p/w500{{ poster }}" alt="{{ title_str }}" class="w-full h-full object-cover">
+                        {% endif %}
+                    {% endif %}
+                </div>
+
+                <div class="flex-1 space-y-1.5">
+                    <div class="flex flex-wrap items-center gap-2">
+                        <span class="text-[10px] font-black uppercase tracking-wider text-emerald-400 bg-emerald-950/90 border border-emerald-800/80 px-2.5 py-0.5 rounded-full">
+                            {{ media_type }}
+                        </span>
+                        {% if t_data.status %}
+                        <span class="text-[10px] font-bold uppercase text-neutral-300 bg-neutral-800/90 border border-neutral-700/60 px-2.5 py-0.5 rounded-full">
+                            {{ t_data.status }}
+                        </span>
+                        {% endif %}
+                        {% if release_val %}
+                        <span class="text-xs text-neutral-300 font-semibold bg-neutral-950/70 px-2.5 py-0.5 rounded-full border border-neutral-800">
+                            {{ release_val[:4] if release_val|string|length >= 4 else release_val }}
+                        </span>
+                        {% endif %}
+                    </div>
+
+                    <h2 class="text-2xl sm:text-4xl font-black text-white tracking-tight leading-none drop-shadow-md">
+                        {{ title_str }}
+                    </h2>
+                    {% if t_data.tagline %}
+                    <p class="text-xs sm:text-sm italic text-emerald-400/90 font-medium">"{{ t_data.tagline }}"</p>
+                    {% endif %}
+                </div>
             </div>
-            
-            <p class="text-gray-700 leading-relaxed">
-                {{ overview }}
-            </p>
         </div>
-        
-        <div class="bg-gray-50 p-4 border-t flex justify-end">
-            <button onclick="document.getElementById('info-modal').remove()" 
-                    class="px-4 py-2 bg-gray-200 text-gray-800 rounded shadow-sm hover:bg-gray-300 font-medium">
+
+        <!-- Details Body -->
+        <div class="p-6 overflow-y-auto space-y-6 flex-1 text-sm text-neutral-300">
+            <div class="space-y-2">
+                <h3 class="text-xs font-bold uppercase tracking-wider text-neutral-400">Overview</h3>
+                <p class="leading-relaxed text-neutral-200">{{ overview_text or 'No synopsis available.' }}</p>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 bg-neutral-950/70 p-4 rounded-xl border border-neutral-800 text-xs">
+                {% if t_data.budget and t_data.budget > 0 %}
+                <div>
+                    <span class="text-neutral-500 font-semibold block uppercase text-[10px]">Budget</span>
+                    <span class="text-emerald-400 font-bold">${{ "{:,}".format(t_data.budget) }}</span>
+                </div>
+                {% endif %}
+                {% if t_data.revenue and t_data.revenue > 0 %}
+                <div>
+                    <span class="text-neutral-500 font-semibold block uppercase text-[10px]">Box Office</span>
+                    <span class="text-emerald-400 font-bold">${{ "{:,}".format(t_data.revenue) }}</span>
+                </div>
+                {% endif %}
+                {% if t_data.production_companies %}
+                <div class="sm:col-span-2">
+                    <span class="text-neutral-500 font-semibold block uppercase text-[10px]">Production</span>
+                    <span class="text-neutral-300 font-medium">
+                        {{ t_data.production_companies|join(' • ') if t_data.production_companies is sequence and t_data.production_companies is not string else t_data.production_companies }}
+                    </span>
+                </div>
+                {% endif %}
+            </div>
+
+            {% if existing_entry %}
+            <div class="pt-4 border-t border-neutral-800 space-y-3 bg-neutral-950/40 p-4 rounded-xl border border-neutral-800/80">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-xs font-bold uppercase tracking-wider text-emerald-400">My Watch Log</h3>
+                    <span class="text-xs text-neutral-400 capitalize">Status: <strong class="text-neutral-200">{{ existing_entry.status }}</strong></span>
+                </div>
+
+                <div class="flex flex-wrap items-center gap-4 text-xs">
+                    {% if existing_entry.rating %}
+                    <span class="text-amber-400 font-bold bg-amber-950/50 border border-amber-800/60 px-2.5 py-1 rounded-md">
+                        ★ {{ existing_entry.rating }}/10
+                    </span>
+                    {% endif %}
+
+                    {% if media_type == 'tv' and existing_entry.last_watched_season is not none %}
+                    <span class="text-emerald-400 font-semibold bg-emerald-950/50 border border-emerald-800/60 px-2.5 py-1 rounded-md">
+                        S{{ "%02d"|format(existing_entry.last_watched_season) }}E{{ "%02d"|format(existing_entry.last_watched_episode or 0) }}
+                    </span>
+                    {% endif %}
+                </div>
+
+                {% if existing_entry.notes %}
+                <p class="text-xs text-neutral-300 italic bg-neutral-900 p-2.5 rounded-lg border border-neutral-800">
+                    "{{ existing_entry.notes }}"
+                </p>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Footer Actions -->
+        <div class="p-4 border-t border-neutral-800 bg-neutral-950 flex items-center justify-between shrink-0">
+            <button type="button" onclick="document.getElementById('info-modal')?.remove()"
+                    class="px-5 py-2 text-sm text-neutral-300 hover:text-white bg-neutral-800 rounded-full font-semibold transition-colors cursor-pointer">
                 Close
             </button>
+
+            {% if existing_entry %}
+            <button hx-get="/watch-entries/{{ existing_entry.id }}/edit-modal"
+                    hx-target="#info-modal"
+                    hx-swap="outerHTML"
+                    class="px-5 py-2 text-sm text-neutral-950 bg-emerald-500 rounded-full hover:bg-emerald-400 font-extrabold shadow-lg transition-all cursor-pointer">
+                Edit Entry
+            </button>
+            {% endif %}
         </div>
-        
+
     </div>
 </div>
