@@ -1,56 +1,69 @@
-<div id="entry-card-{{ entry.id }}"
-     class="group relative flex flex-col bg-neutral-900/90 border border-neutral-800 rounded-2xl overflow-hidden shadow-lg transition-all duration-200 hover:border-neutral-700">
-
-    <!-- Poster / Media Type Badge -->
-    <div class="relative aspect-[2/3] bg-neutral-950 overflow-hidden cursor-pointer"
-         {% if entry.media_item %}
-         hx-get="/titles/info-modal/{{ entry.media_item.tmdb_id or entry.media_item.id }}/{{ entry.media_item.media_type or 'movie' }}"
-         hx-target="#modal-container"
-         hx-swap="innerHTML"
-         {% endif %}>
-
+<div
+    id="entry-card-{{ entry.id }}"
+    class="group relative flex flex-col bg-neutral-900/90 border border-neutral-800 rounded-2xl overflow-hidden shadow-lg transition-all duration-200 hover:border-neutral-700"
+>
+    <!-- Poster -->
+    <div
+        class="relative aspect-[2/3] bg-neutral-950 overflow-hidden cursor-pointer"
+        {% if entry.media_item %}
+        hx-get="/titles/info-modal/{{ entry.media_item.tmdb_id or entry.media_item.id }}/{{ entry.media_item.media_type or 'movie' }}"
+        hx-target="#modal-container"
+        hx-swap="innerHTML"
+        {% endif %}
+    >
         {% if entry.media_item and entry.media_item.poster_path %}
-            <img src="https://image.tmdb.org/t/p/w500{{ entry.media_item.poster_path }}"
-                 alt="{{ entry.media_item.title }}"
-                 class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                 loading="lazy">
+            <img
+                src="https://image.tmdb.org/t/p/w500{{ entry.media_item.poster_path }}"
+                alt="{{ entry.media_item.title }}"
+                class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                loading="lazy"
+            >
         {% else %}
-            <div class="flex items-center justify-center w-full h-full text-neutral-600 text-xs font-medium">No Image</div>
+            <div class="flex items-center justify-center w-full h-full text-neutral-600 text-xs font-medium">
+                No Image
+            </div>
         {% endif %}
 
         <span class="absolute top-2.5 left-2.5 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-neutral-950/80 backdrop-blur-md text-neutral-300 border border-neutral-800">
             {{ entry.media_item.media_type if entry.media_item else 'media' }}
         </span>
 
-        <!-- Quick Remove Button -->
-        <button hx-delete="/watch-entries/{{ entry.id }}"
-                hx-target="#entry-card-{{ entry.id }}"
-                hx-swap="outerHTML"
-                hx-confirm="Remove this title from your list?"
-                onclick="event.stopPropagation();"
-                class="absolute top-2.5 right-2.5 p-1.5 rounded-lg bg-neutral-950/80 text-neutral-400 hover:text-rose-400 hover:bg-rose-500/10 border border-neutral-800 transition-colors opacity-0 group-hover:opacity-100 cursor-pointer">
+        <!-- Remove -->
+        <button
+            hx-delete="/watch-entries/{{ entry.id }}"
+            hx-target="#entry-card-{{ entry.id }}"
+            hx-swap="outerHTML"
+            hx-confirm="Remove this title from your list?"
+            onclick="event.stopPropagation();"
+            class="absolute top-2.5 right-2.5 p-1.5 rounded-lg bg-neutral-950/80 text-neutral-400 hover:text-rose-400 hover:bg-rose-500/10 border border-neutral-800 transition-colors opacity-0 group-hover:opacity-100 cursor-pointer"
+            title="Remove"
+        >
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
             </svg>
         </button>
     </div>
 
-    <!-- Title & Details -->
+    <!-- Details -->
     <div class="p-3.5 flex flex-col flex-1 justify-between space-y-3">
+
         <div>
-            <h2 class="text-xs font-semibold text-white truncate hover:text-emerald-400 transition-colors cursor-pointer"
+            <h2
+                class="text-xs font-semibold text-white truncate hover:text-emerald-400 transition-colors cursor-pointer"
                 title="{{ entry.media_item.title if entry.media_item else '' }}"
                 {% if entry.media_item %}
                 hx-get="/titles/info-modal/{{ entry.media_item.tmdb_id or entry.media_item.id }}/{{ entry.media_item.media_type or 'movie' }}"
                 hx-target="#modal-container"
                 hx-swap="innerHTML"
-                {% endif %}>
+                {% endif %}
+            >
                 {{ entry.media_item.title if entry.media_item else 'Untitled' }}
             </h2>
 
             {% if entry.media_item and entry.media_item.media_type == 'tv' %}
                 <p class="text-[11px] font-medium text-emerald-400 mt-1">
-                    {% if entry.last_watched_season and entry.last_watched_episode %}
+                    {% if entry.last_watched_season is not none and entry.last_watched_episode is not none %}
+                        Watched through
                         S{{ "%02d"|format(entry.last_watched_season) }}E{{ "%02d"|format(entry.last_watched_episode) }}
                     {% else %}
                         Not Started
@@ -59,46 +72,94 @@
             {% endif %}
         </div>
 
-        <!-- Dynamic Action Buttons -->
+        <!-- Actions -->
         <div class="pt-2 border-t border-neutral-800/60">
-            {% if entry.status in ['want_to_watch', 'to_watch'] %}
+
+            {% if entry.status == 'want_to_watch' %}
+
                 <div class="flex items-center gap-1.5">
-                    <button hx-post="/watch-entries/{{ entry.id }}/start"
-                            hx-target="#entry-card-{{ entry.id }}"
-                            hx-swap="outerHTML"
-                            title="Start Watching"
-                            class="flex-1 py-1.5 px-2 rounded-lg text-xs font-semibold bg-neutral-800 hover:bg-neutral-700 text-neutral-300 transition-colors cursor-pointer">
+
+                    <!-- Silent transition only -->
+                    <button
+                        hx-post="/watch-entries/{{ entry.id }}/start"
+                        hx-target="#entry-card-{{ entry.id }}"
+                        hx-swap="outerHTML"
+                        title="Start Watching"
+                        class="flex-1 py-1.5 px-2 rounded-lg text-xs font-semibold bg-neutral-800 hover:bg-neutral-700 text-neutral-300 transition-colors cursor-pointer"
+                    >
                         Start Watching
                     </button>
-                    <button hx-get="/titles/info-modal/{{ entry.media_item.tmdb_id or entry.media_item.id }}/{{ entry.media_item.media_type or 'movie' }}"
-                            hx-target="#modal-container"
-                            hx-swap="innerHTML"
-                            title="Mark Watched"
-                            class="py-1.5 px-2.5 rounded-lg text-xs font-semibold bg-emerald-500 text-neutral-950 hover:bg-emerald-400 transition-colors cursor-pointer">
+
+                    <!-- Open dossier -->
+                    <button
+                        hx-get="/titles/info-modal/{{ entry.media_item.tmdb_id or entry.media_item.id }}/{{ entry.media_item.media_type or 'movie' }}"
+                        hx-target="#modal-container"
+                        hx-swap="innerHTML"
+                        title="Mark Watched"
+                        class="py-1.5 px-2.5 rounded-lg text-xs font-semibold bg-emerald-500 text-neutral-950 hover:bg-emerald-400 transition-colors cursor-pointer"
+                    >
                         Watched
                     </button>
+
                 </div>
 
             {% elif entry.status == 'in_progress' %}
+
                 {% if entry.media_item and entry.media_item.media_type == 'tv' %}
-                    <button hx-get="/titles/info-modal/{{ entry.media_item.tmdb_id or entry.media_item.id }}/{{ entry.media_item.media_type or 'movie' }}"
-                            hx-target="#modal-container"
-                            hx-swap="innerHTML"
-                            class="w-full py-1.5 px-2.5 rounded-lg text-xs font-semibold bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 transition-colors cursor-pointer flex items-center justify-center gap-1.5">
-                        <span>Progress (S{{ "%02d"|format(entry.last_watched_season or 1) }}E{{ "%02d"|format(entry.last_watched_episode or 0) }})</span>
-                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+
+                    <!-- Progress is edited in the dossier -->
+                    <button
+                        hx-get="/titles/info-modal/{{ entry.media_item.tmdb_id or entry.media_item.id }}/{{ entry.media_item.media_type }}"
+                        hx-target="#modal-container"
+                        hx-swap="innerHTML"
+                        class="w-full py-1.5 px-2.5 rounded-lg text-xs font-semibold bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+                    >
+                        {% if entry.last_watched_season is not none and entry.last_watched_episode is not none %}
+                            <span>
+                                S{{ "%02d"|format(entry.last_watched_season) }}E{{ "%02d"|format(entry.last_watched_episode) }}
+                            </span>
+                        {% else %}
+                            <span>Not Started</span>
+                        {% endif %}
+
+                        <svg
+                            class="w-3 h-3"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                        >
+                            <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="2"
+                                d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+                            />
+                        </svg>
                     </button>
+
                 {% else %}
-                    <button hx-get="/titles/info-modal/{{ entry.media_item.tmdb_id or entry.media_item.id }}/{{ entry.media_item.media_type or 'movie' }}"
-                            hx-target="#modal-container"
-                            hx-swap="innerHTML"
-                            class="w-full py-1.5 px-2.5 rounded-lg text-xs font-semibold bg-emerald-500 text-neutral-950 hover:bg-emerald-400 transition-colors cursor-pointer">
+
+                    <!-- Movie completion is handled in the dossier -->
+                    <button
+                        hx-get="/titles/info-modal/{{ entry.media_item.tmdb_id or entry.media_item.id }}/{{ entry.media_item.media_type }}"
+                        hx-target="#modal-container"
+                        hx-swap="innerHTML"
+                        class="w-full py-1.5 px-2.5 rounded-lg text-xs font-semibold bg-emerald-500 text-neutral-950 hover:bg-emerald-400 transition-colors cursor-pointer"
+                    >
                         Finish Movie
                     </button>
+
                 {% endif %}
 
             {% elif entry.status == 'watched' %}
-                <div class="flex items-center justify-between text-xs py-1 px-1">
+
+                <!-- Watched entries are read/edit, not reset -->
+                <button
+                    hx-get="/titles/info-modal/{{ entry.media_item.tmdb_id or entry.media_item.id }}/{{ entry.media_item.media_type or 'movie' }}"
+                    hx-target="#modal-container"
+                    hx-swap="innerHTML"
+                    class="w-full flex items-center justify-between text-xs py-1 px-1 cursor-pointer"
+                >
                     <span class="text-amber-400 font-bold flex items-center gap-1">
                         {% if entry.rating %}
                             ★ {{ entry.rating }}/10
@@ -106,9 +167,20 @@
                             ★ Watched
                         {% endif %}
                     </span>
-                    <span class="text-[10px] text-neutral-500 font-medium">Logged</span>
-                </div>
+
+                    {% if entry.completed_at %}
+                        <span class="text-[10px] text-neutral-500 font-medium">
+                            {{ entry.completed_at.strftime('%b %-d, %Y') }}
+                        </span>
+                    {% else %}
+                        <span class="text-[10px] text-neutral-500 font-medium">
+                            Watched
+                        </span>
+                    {% endif %}
+                </button>
+
             {% endif %}
+
         </div>
     </div>
 </div>
