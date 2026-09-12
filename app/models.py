@@ -72,6 +72,35 @@ class User(Base):
         cascade="all, delete-orphan",
     )
 
+    recovery_codes = relationship(
+        "RecoveryCode",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+
+
+class RecoveryCode(Base):
+    __tablename__ = "recovery_codes"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(
+        Integer,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    code_hash = Column(String, nullable=False)
+    is_used = Column(Boolean, default=False, nullable=False)
+    created_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+
+    user = relationship(
+        "User",
+        back_populates="recovery_codes",
+    )
+
 
 class MediaItem(Base):
     __tablename__ = "media_items"

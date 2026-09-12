@@ -1,0 +1,67 @@
+<div id="recovery-codes-overlay" class="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-md p-4">
+    <div class="bg-neutral-900 border border-neutral-800 p-6 rounded-2xl shadow-2xl space-y-4 max-w-md w-full">
+        <div class="flex items-center justify-between">
+            <h3 class="text-base font-bold text-white">Your Recovery Codes</h3>
+            <span class="text-[10px] font-bold tracking-wider uppercase bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2.5 py-1 rounded-md">Save Now</span>
+        </div>
+
+        <p class="text-xs text-neutral-400">
+            Store these codes in a safe place. Each code can only be used once to regain access to your account if you lose your password.
+        </p>
+        
+        <!-- Visible Code Grid -->
+        <div class="grid grid-cols-2 gap-2 bg-neutral-950 border border-neutral-800 p-4 rounded-xl font-mono text-sm text-emerald-400 text-center tracking-wider">
+            {% for code in codes %}
+                <div class="select-all py-1 bg-neutral-900 rounded border border-neutral-800/80">{{ code }}</div>
+            {% endfor %}
+        </div>
+
+        <!-- Hidden Container for Clean Clipboard Extraction -->
+        <textarea id="raw-recovery-codes" class="hidden">{{ codes | join('\n') }}</textarea>
+
+        <div class="flex gap-2 pt-2">
+            <button type="button" 
+                    onclick="copyRecoveryCodes(this)"
+                    class="flex-1 text-xs font-bold bg-neutral-800 hover:bg-neutral-700 text-white py-2.5 rounded-xl transition cursor-pointer">
+                Copy All Codes
+            </button>
+            <button type="button" 
+                    onclick="document.getElementById('recovery-codes-overlay').remove()"
+                    class="text-xs font-bold bg-emerald-500 hover:bg-emerald-400 text-neutral-950 px-5 py-2.5 rounded-xl transition cursor-pointer">
+                Done
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+function copyRecoveryCodes(buttonEl) {
+    const rawText = document.getElementById('raw-recovery-codes').value;
+    
+    if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(rawText).then(() => {
+            buttonEl.innerText = 'Copied!';
+            setTimeout(() => { buttonEl.innerText = 'Copy All Codes'; }, 2000);
+        }).catch(() => {
+            fallbackCopyText(rawText, buttonEl);
+        });
+    } else {
+        fallbackCopyText(rawText, buttonEl);
+    }
+}
+
+function fallbackCopyText(text, buttonEl) {
+    const textArea = document.getElementById('raw-recovery-codes');
+    textArea.classList.remove('hidden');
+    textArea.select();
+    try {
+        document.execCommand('copy');
+        buttonEl.innerText = 'Copied!';
+        setTimeout(() => { buttonEl.innerText = 'Copy All Codes'; }, 2000);
+    } catch (err) {
+        alert('Failed to copy. Please manually copy the codes.');
+    } finally {
+        textArea.classList.add('hidden');
+    }
+}
+</script>

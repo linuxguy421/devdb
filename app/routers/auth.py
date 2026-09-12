@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.database import get_db
 from app.models import User
+from app.services.recovery_codes import verify_and_consume_code
 
 router = APIRouter(tags=["Auth"])
 templates = Jinja2Templates(directory="app/templates")
@@ -147,6 +148,62 @@ async def login_post(
         secure=settings.COOKIE_SECURE,
     )
     return response
+
+
+@router.get("/forgot-password")
+async def forgot_password_get(request: Request):
+    return templates.TemplateResponse(
+        request=request,
+        name="forgot_password.html",
+        context={"request": request},
+    )
+
+
+@router.post("/forgot-password")
+async def forgot_password_post(
+    request: Request,
+    username: str = Form(...),
+    recovery_code: str = Form(...),
+    new_password: str = Form(...),
+    db: AsyncSession = Depends(get_db),
+):
+    username = username.strip()
+    stmt = select(User).where(User.username == username)
+    res = await db.execute(stmt)
+    user = res.scalar_one_or_none()
+
+    if not user:
+        return templates.TemplateResponse(
+            request=request,
+            name="forgot_password.html",
+            context={
+                "request": request,
+                "error": "Invalid username or recovery code.",
+                "username": username,
+            },
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+
+    is_valid = await verify_and_consume_code(db, user, recovery_code)
+    if not is_valid:
+        return templates.TemplateResponse(
+            request=request,
+            name="forgot_password.html",
+            context={
+                "request": request,
+                "error": "Invalid username or recovery code.",
+                "username": username,
+            },
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+
+    user.hashed_password = get_password_hash(new_password)
+    await db.commit()
+
+    return RedirectResponse(
+        url="/login?success=password_reset",
+        status_code=status.HTTP_303_SEE_OTHER,
+    )
 
 
 @router.get("/logout")

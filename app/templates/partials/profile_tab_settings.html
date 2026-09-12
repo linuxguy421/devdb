@@ -14,11 +14,22 @@
         </div>
     </div>
 
-    <div class="bg-neutral-950/50 p-4 rounded-xl border border-neutral-800/80 space-y-2">
+    <div class="bg-neutral-950/50 p-4 rounded-xl border border-neutral-800/80 space-y-3">
         <h4 class="text-xs font-bold text-neutral-400 uppercase tracking-wider">Account Information</h4>
         <div class="text-xs space-y-1 text-neutral-300">
             <p><span class="text-neutral-500">Email:</span> {{ current_user.email }}</p>
             <p><span class="text-neutral-500">Account ID:</span> #{{ current_user.id }}</p>
+            <p><span class="text-neutral-500">Active Recovery Codes:</span> {{ active_recovery_codes_count if active_recovery_codes_count is defined else 0 }}</p>
         </div>
+    </div>
+
+    <div class="pt-2">
+        <button type="button"
+                hx-post="/profile/recovery-codes/regenerate"
+                hx-target="body"
+                hx-swap="beforeend"
+                class="w-full bg-neutral-800 hover:bg-neutral-700 text-amber-400 hover:text-amber-300 font-bold border border-amber-500/20 py-2.5 rounded-xl text-xs transition cursor-pointer">
+            Regenerate Recovery Codes
+        </button>
     </div>
 </div>
