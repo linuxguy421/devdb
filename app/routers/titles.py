@@ -91,7 +91,7 @@ async def browse_titles_partial(
         sort_by=sort_key,
         genre_id=parsed_genre_id,
         year_filter=year_val,
-    )
+    ) or {}
     results = data.get("results", [])
 
     for item in results:
@@ -133,9 +133,11 @@ async def browse_titles_partial(
         request=request,
         name="partials/search_results.html",
         context={
+            "request": request,
             "results": results,
             "existing_entries": existing_entries,
             "active_label": active_label,
+            "current_user": current_user,
         },
     )
 
@@ -168,7 +170,7 @@ async def search_titles_partial(
             current_user=current_user,
         )
 
-    data = await tmdb_service.search_multi(query=query_str)
+    data = await tmdb_service.search_multi(query=query_str) or {}
     results = data.get("results", [])
     media_results = [r for r in results if r.get("media_type") in ("movie", "tv")]
 
@@ -181,12 +183,15 @@ async def search_titles_partial(
     if year_val:
         def matches_year(item):
             date_str = item.get("release_date") or item.get("first_air_date") or ""
-            if not date_str or len(date_str) < 4:
+            if not date_str or len(str(date_str)) < 4:
                 return False
             yr = str(date_str)[:4]
             if year_val.startswith("decade_"):
-                dec = int(year_val.replace("decade_", "").replace("s", ""))
-                return yr.isdigit() and dec <= int(yr) <= dec + 9
+                try:
+                    dec = int(year_val.replace("decade_", "").replace("s", ""))
+                    return yr.isdigit() and dec <= int(yr) <= dec + 9
+                except ValueError:
+                    return False
             elif year_val.isdigit():
                 return yr == year_val
             return True
@@ -194,7 +199,7 @@ async def search_titles_partial(
         media_results = [r for r in media_results if matches_year(r)]
 
     if sort_key == "vote_average.desc":
-        media_results.sort(key=lambda x: x.get("vote_average", 0), reverse=True)
+        media_results.sort(key=lambda x: x.get("vote_average") or 0, reverse=True)
     elif sort_key in ("primary_release_date.desc", "first_air_date.desc"):
         media_results.sort(key=lambda x: str(x.get("release_date") or x.get("first_air_date") or ""), reverse=True)
     elif sort_key in ("primary_release_date.asc", "first_air_date.asc"):
@@ -232,9 +237,11 @@ async def search_titles_partial(
         request=request,
         name="partials/search_results.html",
         context={
+            "request": request,
             "results": media_results,
             "existing_entries": existing_entries,
-            "active_label": f"Search results for \"{query_str}\"",
+            "active_label": f'Search results for "{query_str}"',
+            "current_user": current_user,
         },
     )
 
@@ -268,10 +275,11 @@ async def get_title_info_modal(
         request=request,
         name="partials/title_info_modal.html",
         context={
+            "request": request,
             "tmdb_data": tmdb_data,
             "tmdb_id": tmdb_id,
             "media_type": media_type,
             "existing_entry": existing_entry,
             "current_user": current_user,
-        }
+        },
     )

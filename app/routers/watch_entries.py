@@ -24,6 +24,15 @@ router = APIRouter(prefix="/watch-entries", tags=["Watch Entries"])
 templates = Jinja2Templates(directory="app/templates")
 
 
+def safe_int(val: Optional[str]) -> Optional[int]:
+    if val is None or str(val).strip() == "":
+        return None
+    try:
+        return int(val)
+    except (ValueError, TypeError):
+        return None
+
+
 def render_toast(message: str, badge_type: str = "success") -> str:
     border_color = "border-emerald-500/40 text-emerald-400" if badge_type == "success" else "border-rose-500/40 text-rose-400"
     dot_color = "bg-emerald-400" if badge_type == "success" else "bg-rose-400"
@@ -35,6 +44,26 @@ def render_toast(message: str, badge_type: str = "success") -> str:
         </div>
     </div>
     """
+
+
+def render_entry_response(request: Request, entry: WatchEntry, toast_msg: str, badge_type: str = "success") -> HTMLResponse:
+    hx_target = request.headers.get("HX-Target", "")
+
+    if hx_target.startswith("watch-button"):
+        btn_html = templates.get_template("partials/watch_button.html").render(
+            {
+                "request": request,
+                "entry": entry,
+                "tmdb_id": entry.media_item.tmdb_id if entry.media_item else None,
+                "media_type": getattr(entry, "media_type", None) or (entry.media_item.media_type if entry.media_item else "movie"),
+            }
+        )
+        card_rendered = templates.get_template("partials/my_media_card.html").render({"request": request, "entry": entry})
+        card_oob = f'<div id="entry-card-{entry.id}" hx-swap-oob="outerHTML">{card_rendered}</div>'
+        return HTMLResponse(content=btn_html + card_oob + render_toast(toast_msg, badge_type))
+
+    card_rendered = templates.get_template("partials/my_media_card.html").render({"request": request, "entry": entry})
+    return HTMLResponse(content=card_rendered + render_toast(toast_msg, badge_type))
 
 
 @router.post("", response_class=HTMLResponse)
@@ -88,12 +117,85 @@ async def create_watch_entry(
     await db.refresh(entry)
 
     toast_msg = "Marked as watched!" if norm_status == "watched" else "Added to My Media!"
-    toast_oob = render_toast(toast_msg)
-
     btn_html = templates.get_template("partials/watch_button.html").render(
         {"request": request, "entry": entry, "tmdb_id": tmdb_id, "media_type": media_type}
     )
-    return HTMLResponse(content=btn_html + toast_oob)
+    return HTMLResponse(content=btn_html + render_toast(toast_msg))
+
+
+@router.post("/{entry_id}/update", response_class=HTMLResponse)
+async def update_watch_entry(
+    request: Request,
+    entry_id: int,
+    season: Optional[str] = Form(None),
+    episode: Optional[str] = Form(None),
+    rating: Optional[str] = Form(None),
+    notes: Optional[str] = Form(None),
+    is_private: Optional[str] = Form(None),
+    db: AsyncSession = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user),
+):
+    if not current_user:
+        return HTMLResponse(status_code=status.HTTP_401_UNAUTHORIZED)
+
+    stmt = select(WatchEntry).options(joinedload(WatchEntry.media_item)).where(
+        WatchEntry.id == entry_id, WatchEntry.user_id == current_user.id
+    )
+    entry = (await db.execute(stmt)).scalar_one_or_none()
+    if not entry:
+        raise HTTPException(status_code=404, detail="Watch entry not found")
+
+    season_num = safe_int(season)
+    episode_num = safe_int(episode)
+    rating_num = safe_int(rating)
+    is_priv = str(is_private).lower() in ("true", "1", "on", "yes")
+
+    is_tv = (getattr(entry, "media_type", None) == "tv") or (entry.media_item and entry.media_item.media_type == "tv")
+    if is_tv:
+        if season_num is not None:
+            entry.last_watched_season = season_num
+        if episode_num is not None:
+            entry.last_watched_episode = episode_num
+
+        if (entry.last_watched_season or 0) > 0 or (entry.last_watched_episode or 0) > 0:
+            if entry.status not in ("watched", "in_progress"):
+                entry.status = "in_progress"
+
+    entry.rating = rating_num
+    entry.notes = notes if notes and notes.strip() else None
+    entry.is_private = is_priv
+
+    await db.commit()
+    await db.refresh(entry)
+
+    oob_elements = []
+
+    # Update grid card OOB
+    card_rendered = templates.get_template("partials/my_media_card.html").render({"request": request, "entry": entry})
+    target_pat = f'id="entry-card-{entry.id}"'
+    if target_pat in card_rendered:
+        card_oob = card_rendered.replace(target_pat, f'{target_pat} hx-swap-oob="outerHTML"', 1)
+    else:
+        card_oob = f'<div id="entry-card-{entry.id}" hx-swap-oob="outerHTML">{card_rendered}</div>'
+    oob_elements.append(card_oob)
+
+    # Update watch button OOB if rendered on details/search pages
+    if entry.media_item:
+        btn_rendered = templates.get_template("partials/watch_button.html").render(
+            {
+                "request": request,
+                "entry": entry,
+                "tmdb_id": entry.media_item.tmdb_id,
+                "media_type": entry.media_item.media_type,
+            }
+        )
+        btn_pat = f'id="watch-button-container-{entry.media_item.tmdb_id}"'
+        if btn_pat in btn_rendered:
+            btn_oob = btn_rendered.replace(btn_pat, f'{btn_pat} hx-swap-oob="outerHTML"', 1)
+            oob_elements.append(btn_oob)
+
+    oob_elements.append(render_toast("Entry updated successfully!"))
+    return HTMLResponse(content="".join(oob_elements))
 
 
 @router.post("/{entry_id}/start", response_class=HTMLResponse)
@@ -117,8 +219,7 @@ async def action_start_watching(
     await db.commit()
     await db.refresh(entry)
 
-    card_html = templates.get_template("partials/my_media_card.html").render({"request": request, "entry": entry})
-    return HTMLResponse(content=card_html + render_toast("Moved to In Progress"))
+    return render_entry_response(request, entry, "Moved to In Progress")
 
 
 @router.post("/{entry_id}/progress", response_class=HTMLResponse)
@@ -158,9 +259,8 @@ async def action_increment_progress(
     except ProgressDomainError as err:
         return HTMLResponse(content=render_toast(str(err), badge_type="remove"), status_code=400)
 
-    card_html = templates.get_template("partials/my_media_card.html").render({"request": request, "entry": entry})
     msg = "Completed series!" if entry.status == "watched" else f"Updated to S{entry.last_watched_season:02d}E{entry.last_watched_episode:02d}"
-    return HTMLResponse(content=card_html + render_toast(msg))
+    return render_entry_response(request, entry, msg)
 
 
 @router.post("/{entry_id}/complete", response_class=HTMLResponse)
@@ -184,8 +284,7 @@ async def action_complete_media(
     await db.commit()
     await db.refresh(entry)
 
-    card_html = templates.get_template("partials/my_media_card.html").render({"request": request, "entry": entry})
-    return HTMLResponse(content=card_html + render_toast("Marked as Watched!"))
+    return render_entry_response(request, entry, "Marked as Watched!")
 
 
 @router.post("/{entry_id}/reset", response_class=HTMLResponse)
@@ -209,8 +308,7 @@ async def action_reset_media(
     await db.commit()
     await db.refresh(entry)
 
-    card_html = templates.get_template("partials/my_media_card.html").render({"request": request, "entry": entry})
-    return HTMLResponse(content=card_html + render_toast("Reset back to Want to Watch"))
+    return render_entry_response(request, entry, "Reset back to Want to Watch")
 
 
 @router.delete("/{entry_id}", response_class=HTMLResponse)
