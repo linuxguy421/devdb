@@ -10,6 +10,7 @@ from app.services.progress import (
     STATUS_IN_PROGRESS,
     STATUS_WATCHED,
     STATUS_WANT_TO_WATCH,
+    set_status,
 )
 
 
@@ -20,6 +21,7 @@ def test_start_and_reset_progress():
     assert entry.status == STATUS_IN_PROGRESS
     assert entry.last_watched_season is None
     assert entry.last_watched_episode is None
+    assert entry.completed_at is None
 
     entry.last_watched_season = 1
     entry.last_watched_episode = 4
@@ -81,3 +83,28 @@ def test_unreleased_episode_blocking():
 
     with pytest.raises(ProgressDomainError):
         mark_next_episode_watched(entry, media, season_map, next_ep_air_date="2099-01-01")
+
+
+def test_completion_timestamp_and_reopen_semantics():
+    media = MediaItem(media_type="movie")
+    entry = WatchEntry(status=STATUS_IN_PROGRESS)
+
+    complete(entry)
+    assert entry.status == STATUS_WATCHED
+    assert entry.completed_at is not None
+
+    completed_at = entry.completed_at
+    set_status(entry, STATUS_IN_PROGRESS)
+    assert entry.status == STATUS_IN_PROGRESS
+    assert entry.completed_at is None
+
+    entry.last_watched_season = 3
+    entry.last_watched_episode = 4
+    entry.completed_at = completed_at
+    set_status(entry, STATUS_WATCHED)
+    assert entry.completed_at is not None
+
+    reset_progress(entry)
+    assert entry.status == STATUS_WANT_TO_WATCH
+    assert entry.completed_at is None
+    assert entry.last_watched_season is None

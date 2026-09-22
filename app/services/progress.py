@@ -12,26 +12,51 @@ class ProgressDomainError(Exception):
     pass
 
 
+def set_status(entry: WatchEntry, new_status: str) -> WatchEntry:
+    """Apply canonical status-transition semantics to a watch entry."""
+    if new_status not in {
+        STATUS_WANT_TO_WATCH,
+        STATUS_IN_PROGRESS,
+        STATUS_WATCHED,
+    }:
+        raise ProgressDomainError(f"Invalid watch status: {new_status}")
+
+    old_status = entry.status
+    entry.status = new_status
+
+    if new_status == STATUS_WANT_TO_WATCH:
+        entry.last_watched_season = None
+        entry.last_watched_episode = None
+        entry.completed_at = None
+    elif new_status == STATUS_IN_PROGRESS:
+        entry.completed_at = None
+        # Preserve an existing TV cursor when reopening a completed entry.
+    elif new_status == STATUS_WATCHED:
+        # Preserve a historical completion timestamp when one already
+        # exists. New transitions receive a trustworthy current timestamp.
+        if old_status != STATUS_WATCHED or entry.completed_at is None:
+            entry.completed_at = datetime.now(timezone.utc)
+
+    return entry
+
+
 def start_watching(entry: WatchEntry) -> WatchEntry:
-    """Transitions entry to 'in_progress'. Resets TV cursors to None/None."""
+    """Transition to in_progress and reset the TV cursor."""
     entry.status = STATUS_IN_PROGRESS
+    entry.completed_at = None
     entry.last_watched_season = None
     entry.last_watched_episode = None
     return entry
 
 
 def reset_progress(entry: WatchEntry) -> WatchEntry:
-    """Resets entry back to 'want_to_watch' and clears progress cursors."""
-    entry.status = STATUS_WANT_TO_WATCH
-    entry.last_watched_season = None
-    entry.last_watched_episode = None
-    return entry
+    """Reset the entry to want_to_watch and clear progress/completion."""
+    return set_status(entry, STATUS_WANT_TO_WATCH)
 
 
 def complete(entry: WatchEntry) -> WatchEntry:
-    """Explicitly marks an entry as fully watched."""
-    entry.status = STATUS_WATCHED
-    return entry
+    """Mark an entry fully watched and timestamp the transition."""
+    return set_status(entry, STATUS_WATCHED)
 
 
 def calculate_next_episode(
@@ -102,7 +127,7 @@ def mark_next_episode_watched(
 
     if next_target is None:
         # Reached the end of available episodes
-        entry.status = STATUS_WATCHED
+        complete(entry)
         return entry
 
     target_season, target_episode = next_target
@@ -116,6 +141,6 @@ def mark_next_episode_watched(
         season_episode_counts
     )
     if subsequent_target is None:
-        entry.status = STATUS_WATCHED
+        complete(entry)
 
     return entry

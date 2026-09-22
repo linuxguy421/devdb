@@ -1,7 +1,7 @@
 import pytest
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
-from app.models import MediaItem, WatchEntry, User
+from app.models import MediaItem, TVSeason, WatchEntry, User
 
 
 @pytest.mark.asyncio
@@ -75,3 +75,20 @@ async def test_watch_entry_status_persistence(db_session):
     result = await db_session.execute(stmt)
     fetched = result.scalar_one()
     assert fetched.status == "want_to_watch"
+
+
+@pytest.mark.asyncio
+async def test_tv_season_uniqueness_and_relationship(db_session):
+    item = MediaItem(tmdb_id=707, media_type="tv", title="Example Show")
+    db_session.add(item)
+    await db_session.commit()
+
+    season = TVSeason(media_item_id=item.id, season_number=1, episode_count=10)
+    db_session.add(season)
+    await db_session.commit()
+
+    duplicate = TVSeason(media_item_id=item.id, season_number=1, episode_count=10)
+    db_session.add(duplicate)
+    with pytest.raises(IntegrityError):
+        await db_session.commit()
+    await db_session.rollback()

@@ -1,11 +1,11 @@
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 import pytest
 from httpx import ASGITransport, AsyncClient
 from starlette.responses import HTMLResponse
 
 from app.database import get_db
 from app.main import app
-from app.models import MediaItem, User, WatchEntry
+from app.models import MediaItem, TVSeason, User, WatchEntry
 from app.routers.auth import get_current_user_optional
 
 
@@ -46,6 +46,10 @@ async def test_watch_entry_htmx_actions(db_session):
     db_session.add_all([user, item])
     await db_session.commit()
 
+    db_session.add_all([
+        TVSeason(media_item_id=item.id, season_number=1, episode_count=12),
+        TVSeason(media_item_id=item.id, season_number=2, episode_count=12),
+    ])
     entry = WatchEntry(user_id=user.id, media_item_id=item.id, status="want_to_watch")
     db_session.add(entry)
     await db_session.commit()
@@ -83,5 +87,59 @@ async def test_watch_entry_htmx_actions(db_session):
             await db_session.refresh(entry)
             assert entry.status == "want_to_watch"
             assert entry.last_watched_season is None
+
+    app.dependency_overrides.clear()
+
+
+@pytest.mark.asyncio
+async def test_existing_entry_update_saves_rating_and_notes(db_session):
+    user = User(username="edit_tester", email="edit@example.com", hashed_password="pw")
+    item = MediaItem(tmdb_id=808, media_type="movie", title="Arrival")
+    db_session.add_all([user, item])
+    await db_session.commit()
+
+    entry = WatchEntry(
+        user_id=user.id,
+        media_item_id=item.id,
+        status="want_to_watch",
+    )
+    db_session.add(entry)
+    await db_session.commit()
+
+    async def _get_db_override():
+        yield db_session
+
+    app.dependency_overrides[get_current_user_optional] = lambda: user
+    app.dependency_overrides[get_db] = _get_db_override
+
+    transport = ASGITransport(app=app)
+    with patch(
+        "app.routers.watch_entries.tmdb_service.get_formatted_details",
+        new=AsyncMock(return_value={
+            "title": "Arrival",
+            "overview": "A linguist encounters an alien language.",
+            "vote_average": 8.0,
+        }),
+    ):
+        async with AsyncClient(transport=transport, base_url="http://test") as ac:
+            res = await ac.post(
+                f"/watch-entries/{entry.id}/update",
+                data={
+                    "status_val": "watched",
+                    "rating": "9",
+                    "notes": "Excellent.",
+                    "is_private": "false",
+                },
+            )
+
+    assert res.status_code == 200
+
+    await db_session.refresh(entry)
+    assert entry.status == "watched"
+    assert entry.rating == 9
+    assert entry.notes == "Excellent."
+    assert entry.completed_at is not None
+    assert "Save Changes" in res.text
+    assert "Excellent." in res.text
 
     app.dependency_overrides.clear()

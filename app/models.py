@@ -141,11 +141,74 @@ class MediaItem(Base):
         cascade="all, delete-orphan",
     )
 
+    tv_seasons = relationship(
+        "TVSeason",
+        back_populates="media_item",
+        cascade="all, delete-orphan",
+        order_by="TVSeason.season_number",
+    )
+
+# Financial & Status Metadata
+    budget = Column(Integer, nullable=True)  # USD
+    revenue = Column(Integer, nullable=True)  # USD
+    status = Column(String(50), nullable=True)  # e.g., "Released", "In Production"
+    tagline = Column(Text, nullable=True)
+    production_companies = Column(
+        Text, nullable=True
+    )  # Comma-separated or JSON string
+
     __table_args__ = (
         UniqueConstraint(
             "tmdb_id",
             "media_type",
             name="uq_media_item_tmdb_type",
+        ),
+    )
+
+
+class TVSeason(Base):
+    __tablename__ = "tv_seasons"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    media_item_id = Column(
+        Integer,
+        ForeignKey("media_items.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    season_number = Column(Integer, nullable=False)
+    name = Column(String, nullable=True)
+    overview = Column(Text, nullable=True)
+    poster_path = Column(String, nullable=True)
+    air_date = Column(String, nullable=True)
+    episode_count = Column(Integer, nullable=False, default=0)
+
+    last_synced_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+
+    media_item = relationship(
+        "MediaItem",
+        back_populates="tv_seasons",
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "media_item_id",
+            "season_number",
+            name="uq_tv_season_media_item_number",
+        ),
+        CheckConstraint(
+            "season_number >= 0",
+            name="ck_tv_season_number_valid",
+        ),
+        CheckConstraint(
+            "episode_count >= 0",
+            name="ck_tv_season_episode_count_valid",
         ),
     )
 

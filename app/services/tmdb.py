@@ -102,7 +102,6 @@ class TMDBService:
     async def get_formatted_details(self, tmdb_id: int, media_type: str) -> Dict[str, Any]:
         target_type = media_type if media_type in ("movie", "tv") else "movie"
 
-        # Media details & cast rarely change, so cache raw response for 24 hours (86,400s)
         raw_data = await self._get(
             f"/{target_type}/{tmdb_id}",
             {"append_to_response": "credits,external_ids"},
@@ -112,29 +111,46 @@ class TMDBService:
         if not raw_data:
             return {}
 
-        credits = raw_data.get("credits", {})
-        crew = credits.get("crew", [])
-        cast_raw = credits.get("cast", [])
+        credits = raw_data.get("credits") or {}
+        crew = credits.get("crew") or []
+        cast_raw = credits.get("cast") or []
 
-        director = next((m["name"] for m in crew if m.get("job") == "Director"), None)
-        created_by = [c["name"] for c in raw_data.get("created_by", [])] if "created_by" in raw_data else []
-
+        director = next(
+            (member.get("name") for member in crew if member.get("job") == "Director"),
+            None,
+        )
+        created_by = [
+            creator.get("name")
+            for creator in (raw_data.get("created_by") or [])
+            if creator.get("name")
+        ]
         formatted_cast = [
             {
                 "name": member.get("name"),
-                "character": member.get("character", ""),
+                "character": member.get("character") or "",
                 "profile_path": member.get("profile_path"),
             }
             for member in cast_raw[:12]
         ]
 
-        external_ids = raw_data.get("external_ids", {})
+        external_ids = raw_data.get("external_ids") or {}
         imdb_id = raw_data.get("imdb_id") or external_ids.get("imdb_id")
 
         runtime = raw_data.get("runtime")
         if not runtime and raw_data.get("episode_run_time"):
-            runtimes = raw_data.get("episode_run_time")
+            runtimes = raw_data.get("episode_run_time") or []
             runtime = runtimes[0] if runtimes else None
+
+        production_companies = [
+            company.get("name")
+            for company in (raw_data.get("production_companies") or [])
+            if company.get("name")
+        ]
+        networks = [
+            network.get("name")
+            for network in (raw_data.get("networks") or [])
+            if network.get("name")
+        ]
 
         return {
             "id": raw_data.get("id"),
@@ -152,17 +168,32 @@ class TMDBService:
             "runtime": runtime,
             "number_of_seasons": raw_data.get("number_of_seasons"),
             "number_of_episodes": raw_data.get("number_of_episodes"),
-            "genres": raw_data.get("genres", []),
-            "budget": raw_data.get("budget", 0),
-            "revenue": raw_data.get("revenue", 0),
+            "seasons": raw_data.get("seasons") or [],
+            "genres": raw_data.get("genres") or [],
+            "budget": raw_data.get("budget") or 0,
+            "revenue": raw_data.get("revenue") or 0,
             "imdb_id": imdb_id,
             "original_language": raw_data.get("original_language"),
-            "production_companies": [c.get("name") for c in raw_data.get("production_companies", [])],
-            "networks": [n.get("name") for n in raw_data.get("networks", [])] if "networks" in raw_data else [],
+            "production_companies": production_companies,
+            "networks": networks,
             "cast": formatted_cast,
             "director": director,
             "created_by": created_by,
         }
+
+    async def get_tv_season(
+        self,
+        tmdb_id: int,
+        season_number: int,
+    ) -> Dict[str, Any]:
+        """Fetch a single TMDB TV season, cached for 24 hours."""
+        if season_number < 0:
+            return {}
+
+        return await self._get(
+            f"/tv/{tmdb_id}/season/{season_number}",
+            ttl=86400,
+        )
 
 
 tmdb_service = TMDBService()

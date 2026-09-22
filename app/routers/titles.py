@@ -254,14 +254,17 @@ async def get_title_info_modal(
     db: AsyncSession = Depends(get_db),
     current_user: Optional[User] = Depends(get_current_user),
 ):
-    tmdb_data = await tmdb_service.get_formatted_details(tmdb_id, media_type)
-
+    """Render a persisted My Media entry first; fall back to TMDB for new titles."""
     existing_entry = None
+    persisted_item = None
+
     if current_user:
         stmt = (
             select(WatchEntry)
             .join(MediaItem, WatchEntry.media_item_id == MediaItem.id)
-            .options(selectinload(WatchEntry.media_item))
+            .options(
+                selectinload(WatchEntry.media_item).selectinload(MediaItem.tv_seasons)
+            )
             .where(
                 WatchEntry.user_id == current_user.id,
                 MediaItem.tmdb_id == tmdb_id,
@@ -270,10 +273,19 @@ async def get_title_info_modal(
         )
         res = await db.execute(stmt)
         existing_entry = res.scalars().first()
+        if existing_entry:
+            persisted_item = existing_entry.media_item
+
+    tmdb_data = {}
+    if not persisted_item:
+        try:
+            tmdb_data = await tmdb_service.get_formatted_details(tmdb_id, media_type) or {}
+        except Exception:
+            tmdb_data = {}
 
     return templates.TemplateResponse(
         request=request,
-        name="partials/title_info_modal.html",
+        name="partials/info_modal.html",
         context={
             "request": request,
             "tmdb_data": tmdb_data,

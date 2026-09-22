@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request, status
@@ -9,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
 from app.database import get_db
-from app.models import User, WatchEntry
+from app.models import MediaItem, User, WatchEntry
 from app.routers.auth import get_current_user_optional as get_current_user
 from app.services.media_sync import get_or_sync_media_item
 from app.services.progress import (
@@ -17,14 +18,15 @@ from app.services.progress import (
     complete,
     mark_next_episode_watched,
     reset_progress,
+    set_status,
     start_watching,
 )
 from app.services.tmdb import tmdb_service
+from app.services.tv_seasons import get_season_episode_counts
 
 
 router = APIRouter(prefix="/watch-entries", tags=["Watch Entries"])
 templates = Jinja2Templates(directory="app/templates")
-
 
 VALID_STATUSES = {
     "want_to_watch",
@@ -33,14 +35,20 @@ VALID_STATUSES = {
 }
 
 
-def safe_int(val: Optional[str]) -> Optional[int]:
-    if val is None or str(val).strip() == "":
+def parse_optional_int(
+    value: Optional[str],
+    field_name: str,
+) -> Optional[int]:
+    if value is None or str(value).strip() == "":
         return None
 
     try:
-        return int(val)
+        return int(str(value).strip())
     except (ValueError, TypeError):
-        return None
+        raise HTTPException(
+            status_code=400,
+            detail=f"{field_name} must be a whole number.",
+        )
 
 
 def render_toast(message: str, badge_type: str = "success") -> str:
@@ -49,7 +57,6 @@ def render_toast(message: str, badge_type: str = "success") -> str:
         if badge_type == "success"
         else "border-rose-500/40 text-rose-400"
     )
-
     dot_color = (
         "bg-emerald-400"
         if badge_type == "success"
@@ -79,7 +86,6 @@ async def get_entry(
             WatchEntry.user_id == user_id,
         )
     )
-
     result = await db.execute(stmt)
     return result.scalar_one_or_none()
 
@@ -87,11 +93,7 @@ async def get_entry(
 def render_card(entry: WatchEntry) -> str:
     return templates.get_template(
         "partials/my_media_card.html"
-    ).render(
-        {
-            "entry": entry,
-        }
-    )
+    ).render({"entry": entry})
 
 
 def render_watch_button(
@@ -120,7 +122,6 @@ def render_watch_button(
 
 def render_card_oob(entry: WatchEntry) -> str:
     card_html = render_card(entry)
-
     marker = f'id="entry-card-{entry.id}"'
 
     if marker in card_html:
@@ -156,10 +157,64 @@ def render_entry_response(
         )
 
     return HTMLResponse(
-        content=(
-            render_card(entry)
-            + render_toast(toast_msg, badge_type)
+        content=render_card(entry) + render_toast(toast_msg, badge_type)
+    )
+
+
+async def render_info_modal(
+    request: Request,
+    entry: WatchEntry,
+    current_user: User,
+    tmdb_data: Optional[dict] = None,
+) -> str:
+    if tmdb_data is None:
+        try:
+            tmdb_data = await tmdb_service.get_formatted_details(
+                entry.media_item.tmdb_id,
+                entry.media_item.media_type,
+            )
+        except Exception:
+            tmdb_data = {}
+
+    return templates.get_template(
+        "partials/info_modal.html"
+    ).render(
+        {
+            "request": request,
+            "tmdb_data": tmdb_data or {},
+            "tmdb_id": entry.media_item.tmdb_id,
+            "media_type": entry.media_item.media_type,
+            "existing_entry": entry,
+            "current_user": current_user,
+        }
+    )
+
+
+@router.get("/{entry_id}/edit-modal", response_class=HTMLResponse)
+async def get_edit_modal(
+    request: Request,
+    entry_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user),
+):
+    """
+    Compatibility route for browse/search controls.
+
+    The application now uses the same editable info modal everywhere;
+    this route remains so older HTMX controls do not break.
+    """
+    if not current_user:
+        return HTMLResponse(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            headers={"HX-Redirect": "/login"},
         )
+
+    entry = await get_entry(db, entry_id, current_user.id)
+    if not entry:
+        raise HTTPException(status_code=404, detail="Watch entry not found")
+
+    return HTMLResponse(
+        await render_info_modal(request, entry, current_user)
     )
 
 
@@ -170,6 +225,11 @@ async def create_watch_entry(
     tmdb_id: int = Form(...),
     media_type: str = Form(...),
     status_val: str = Form("want_to_watch"),
+    rating: Optional[str] = Form(None),
+    notes: Optional[str] = Form(None),
+    season: Optional[str] = Form(None),
+    episode: Optional[str] = Form(None),
+    is_private: Optional[str] = Form(None),
     from_modal: Optional[str] = Form(None),
     db: AsyncSession = Depends(get_db),
     current_user: Optional[User] = Depends(get_current_user),
@@ -182,26 +242,15 @@ async def create_watch_entry(
 
     if status_val in ("to_watch", "plan_to_watch"):
         status_val = "want_to_watch"
-    elif status_val == "currently_watching":
+    elif status_val in ("currently_watching", "watching"):
         status_val = "in_progress"
 
     if status_val not in VALID_STATUSES:
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid watch status",
-        )
+        raise HTTPException(status_code=400, detail="Invalid watch status")
 
-    media_item = await get_or_sync_media_item(
-        db,
-        tmdb_id,
-        media_type,
-    )
-
+    media_item = await get_or_sync_media_item(db, tmdb_id, media_type)
     if not media_item:
-        raise HTTPException(
-            status_code=404,
-            detail="Media item not found",
-        )
+        raise HTTPException(status_code=404, detail="Media item not found")
 
     stmt = (
         select(WatchEntry)
@@ -211,39 +260,110 @@ async def create_watch_entry(
             WatchEntry.media_item_id == media_item.id,
         )
     )
+    entry = (await db.execute(stmt)).scalar_one_or_none()
 
-    entry = (
-        await db.execute(stmt)
-    ).scalar_one_or_none()
-
-    if not entry:
+    if entry is None:
         entry = WatchEntry(
             user_id=current_user.id,
             media_item_id=media_item.id,
-            status=status_val,
+            status="want_to_watch",
         )
         db.add(entry)
-    else:
-        entry.status = status_val
+        await db.flush()
+
+    old_status = entry.status
+    if old_status != status_val:
+        set_status(entry, status_val)
+
+    if rating is not None:
+        rating_num = parse_optional_int(rating, "Rating")
+        if rating_num is not None and not 1 <= rating_num <= 10:
+            raise HTTPException(status_code=400, detail="Rating must be between 1 and 10")
+        entry.rating = rating_num
+
+    if notes is not None:
+        entry.notes = notes.strip() or None
+
+    if is_private is not None:
+        entry.is_private = str(is_private).lower() in (
+            "true", "1", "on", "yes"
+        )
+
+    if media_item.media_type == "tv":
+        season_num = parse_optional_int(season, "Season")
+        episode_num = parse_optional_int(episode, "Episode")
+
+        if (season_num is None) != (episode_num is None):
+            raise HTTPException(
+                status_code=400,
+                detail="Season and episode must be provided together.",
+            )
+
+        if season_num is not None:
+            if season_num < 1 or episode_num < 1:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Season and episode must be at least 1.",
+                )
+
+            counts = await get_season_episode_counts(db, media_item)
+            max_episode = counts.get(season_num)
+            if max_episode is None:
+                raise HTTPException(
+                    status_code=400,
+                    detail="That season is not available.",
+                )
+            if episode_num > max_episode:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Season {season_num} has only {max_episode} episodes.",
+                )
+
+            entry.last_watched_season = season_num
+            entry.last_watched_episode = episode_num
+
+    if status_val == "want_to_watch":
+        entry.last_watched_season = None
+        entry.last_watched_episode = None
+        entry.completed_at = None
+    elif status_val == "watched" and old_status != "watched":
+        entry.completed_at = datetime.now(timezone.utc)
+    elif status_val == "in_progress":
+        entry.completed_at = None
 
     try:
         await db.commit()
     except IntegrityError:
         await db.rollback()
-
-        entry = (
-            await db.execute(stmt)
-        ).scalar_one()
-
-        entry.status = status_val
-
-        await db.commit()
+        raise HTTPException(
+            status_code=409,
+            detail="This media entry already exists.",
+        )
 
     await db.refresh(entry)
+
+    if from_modal:
+        modal_html = await render_info_modal(
+            request,
+            entry,
+            current_user,
+        )
+        return HTMLResponse(
+            content=(
+                modal_html
+                + render_card_oob(entry)
+                + render_toast(
+                    "Saved to My Media."
+                    if old_status != status_val
+                    else "Updated My Media entry."
+                )
+            )
+        )
 
     return HTMLResponse(
         content=(
             render_watch_button(request, entry)
+            + render_card_oob(entry)
             + render_toast(
                 "Marked as watched!"
                 if status_val == "watched"
@@ -268,133 +388,98 @@ async def update_watch_entry(
 ):
     if not current_user:
         return HTMLResponse(
-            status_code=status.HTTP_401_UNAUTHORIZED
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            headers={"HX-Redirect": "/login"},
         )
 
-    entry = await get_entry(
-        db,
-        entry_id,
-        current_user.id,
-    )
-
+    entry = await get_entry(db, entry_id, current_user.id)
     if not entry:
-        raise HTTPException(
-            status_code=404,
-            detail="Watch entry not found",
-        )
+        raise HTTPException(status_code=404, detail="Watch entry not found")
 
-    # --------------------------------------------------------------
-    # Status
-    # --------------------------------------------------------------
+    old_status = entry.status
+
     if status_val is not None:
         if status_val not in VALID_STATUSES:
-            raise HTTPException(
-                status_code=400,
-                detail="Invalid watch status",
-            )
+            raise HTTPException(status_code=400, detail="Invalid watch status")
+        if status_val != old_status:
+            set_status(entry, status_val)
 
-        entry.status = status_val
-
-    # --------------------------------------------------------------
-    # Rating
-    # --------------------------------------------------------------
+    rating_num = parse_optional_int(rating, "Rating")
+    if rating_num is not None and not 1 <= rating_num <= 10:
+        raise HTTPException(status_code=400, detail="Rating must be between 1 and 10")
     if rating is not None:
-        rating_num = safe_int(rating)
-
-        if rating_num is not None and not 1 <= rating_num <= 10:
-            raise HTTPException(
-                status_code=400,
-                detail="Rating must be between 1 and 10",
-            )
-
         entry.rating = rating_num
 
-    # --------------------------------------------------------------
-    # Review / notes
-    # --------------------------------------------------------------
     if notes is not None:
-        cleaned_notes = notes.strip()
-        entry.notes = cleaned_notes or None
+        entry.notes = notes.strip() or None
 
-    # --------------------------------------------------------------
-    # Privacy
-    # --------------------------------------------------------------
     if is_private is not None:
-        entry.is_private = (
-            str(is_private).lower()
-            in ("true", "1", "on", "yes")
+        entry.is_private = str(is_private).lower() in (
+            "true", "1", "on", "yes"
         )
 
-    # --------------------------------------------------------------
-    # TV progress
-    # --------------------------------------------------------------
     is_tv = (
         entry.media_item is not None
         and entry.media_item.media_type == "tv"
     )
 
     if is_tv:
-        season_num = safe_int(season)
-        episode_num = safe_int(episode)
+        season_num = parse_optional_int(season, "Season")
+        episode_num = parse_optional_int(episode, "Episode")
+
+        if (season_num is None) != (episode_num is None):
+            raise HTTPException(
+                status_code=400,
+                detail="Season and episode must be provided together.",
+            )
 
         if season_num is not None:
-            if season_num < 1:
+            if season_num < 1 or episode_num < 1:
                 raise HTTPException(
                     status_code=400,
-                    detail="Season must be at least 1",
+                    detail="Season and episode must be at least 1.",
+                )
+
+            counts = await get_season_episode_counts(
+                db,
+                entry.media_item,
+            )
+            max_episode = counts.get(season_num)
+            if max_episode is None:
+                raise HTTPException(
+                    status_code=400,
+                    detail="That season is not available.",
+                )
+            if episode_num > max_episode:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Season {season_num} has only {max_episode} episodes.",
                 )
 
             entry.last_watched_season = season_num
-
-        if episode_num is not None:
-            if episode_num < 0:
-                raise HTTPException(
-                    status_code=400,
-                    detail="Episode must be at least 0",
-                )
-
             entry.last_watched_episode = episode_num
 
-        if (
-            (
-                season_num is not None
-                or episode_num is not None
-            )
-            and entry.status == "want_to_watch"
-        ):
-            entry.status = "in_progress"
+    if entry.status == "want_to_watch":
+        entry.last_watched_season = None
+        entry.last_watched_episode = None
+        entry.completed_at = None
+    elif entry.status == "in_progress":
+        entry.completed_at = None
+    elif entry.status == "watched":
+        if old_status != "watched":
+            entry.completed_at = datetime.now(timezone.utc)
 
     await db.commit()
     await db.refresh(entry)
 
-    # --------------------------------------------------------------
-    # Safely fetch TMDB details for modal re-render with fallback
-    # --------------------------------------------------------------
-    try:
-        tmdb_data = await tmdb_service.get_formatted_details(
-            entry.media_item.tmdb_id,
-            entry.media_item.media_type,
-        )
-    except Exception:
-        tmdb_data = {}
-
-    modal_html = templates.get_template(
-        "partials/title_info_modal.html"
-    ).render(
-        {
-            "request": request,
-            "tmdb_data": tmdb_data,
-            "tmdb_id": entry.media_item.tmdb_id,
-            "media_type": entry.media_item.media_type,
-            "existing_entry": entry,
-            "current_user": current_user,
-        }
-    )
-
-    card_oob = render_card_oob(entry)
-
+    # The Edit form targets #info-modal with hx-swap="outerHTML".
+    # Return only out-of-band updates here so HTMX removes the modal target
+    # after processing the updated card/toast, closing Edit automatically.
     return HTMLResponse(
-        content=modal_html + card_oob
+        content=(
+            render_card_oob(entry)
+            + render_toast("Saved changes.")
+        )
     )
 
 
@@ -407,20 +492,13 @@ async def action_start_watching(
 ):
     if not current_user:
         return HTMLResponse(
-            status_code=status.HTTP_401_UNAUTHORIZED
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            headers={"HX-Redirect": "/login"},
         )
 
-    entry = await get_entry(
-        db,
-        entry_id,
-        current_user.id,
-    )
-
+    entry = await get_entry(db, entry_id, current_user.id)
     if not entry:
-        raise HTTPException(
-            status_code=404,
-            detail="Watch entry not found",
-        )
+        raise HTTPException(status_code=404, detail="Watch entry not found")
 
     start_watching(entry)
 
@@ -443,26 +521,16 @@ async def action_increment_progress(
 ):
     if not current_user:
         return HTMLResponse(
-            status_code=status.HTTP_401_UNAUTHORIZED
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            headers={"HX-Redirect": "/login"},
         )
 
-    entry = await get_entry(
-        db,
-        entry_id,
-        current_user.id,
-    )
-
+    entry = await get_entry(db, entry_id, current_user.id)
     if not entry:
-        raise HTTPException(
-            status_code=404,
-            detail="Watch entry not found",
-        )
+        raise HTTPException(status_code=404, detail="Watch entry not found")
 
     if not entry.media_item:
-        raise HTTPException(
-            status_code=400,
-            detail="Watch entry has no media item",
-        )
+        raise HTTPException(status_code=400, detail="Watch entry has no media item")
 
     if entry.media_item.media_type != "tv":
         raise HTTPException(
@@ -470,52 +538,15 @@ async def action_increment_progress(
             detail="Episode progress is only available for TV shows",
         )
 
-    total_seasons = entry.media_item.total_seasons or 0
-
-    if total_seasons <= 0:
-        try:
-            details = await tmdb_service.get_formatted_details(
-                entry.media_item.tmdb_id,
-                "tv",
-            )
-            total_seasons = int(details.get("number_of_seasons") or 0)
-        except Exception:
-            total_seasons = 0
-
-    season_episode_counts = {}
-
-    for season_number in range(1, total_seasons + 1):
-        try:
-            season_data = await tmdb_service.get_tv_season(
-                entry.media_item.tmdb_id,
-                season_number,
-            )
-        except Exception:
-            season_data = None
-
-        if not season_data:
-            continue
-
-        episodes = season_data.get("episodes") or []
-
-        episode_numbers = [
-            episode.get("episode_number")
-            for episode in episodes
-            if episode.get("episode_number") is not None
-        ]
-
-        if episode_numbers:
-            season_episode_counts[season_number] = max(episode_numbers)
-
-    # Fallback to local MediaItem metadata if TMDB season details fail or are unavailable
-    if not season_episode_counts and entry.media_item.total_seasons and entry.media_item.total_episodes:
-        eps_per_season = max(1, entry.media_item.total_episodes // entry.media_item.total_seasons)
-        season_episode_counts = {s: eps_per_season for s in range(1, entry.media_item.total_seasons + 1)}
+    season_episode_counts = await get_season_episode_counts(
+        db,
+        entry.media_item,
+    )
 
     if not season_episode_counts:
         return HTMLResponse(
             content=render_toast(
-                "Unable to load episode information from TMDB.",
+                "Unable to load season information for this show.",
                 badge_type="remove",
             ),
             status_code=502,
@@ -532,6 +563,7 @@ async def action_increment_progress(
         await db.refresh(entry)
 
     except ProgressDomainError as err:
+        await db.rollback()
         return HTMLResponse(
             content=render_toast(
                 str(err),
@@ -549,11 +581,7 @@ async def action_increment_progress(
             f"E{entry.last_watched_episode:02d}"
         )
 
-    return render_entry_response(
-        request,
-        entry,
-        message,
-    )
+    return render_entry_response(request, entry, message)
 
 
 @router.post("/{entry_id}/complete", response_class=HTMLResponse)
@@ -565,20 +593,13 @@ async def action_complete_media(
 ):
     if not current_user:
         return HTMLResponse(
-            status_code=status.HTTP_401_UNAUTHORIZED
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            headers={"HX-Redirect": "/login"},
         )
 
-    entry = await get_entry(
-        db,
-        entry_id,
-        current_user.id,
-    )
-
+    entry = await get_entry(db, entry_id, current_user.id)
     if not entry:
-        raise HTTPException(
-            status_code=404,
-            detail="Watch entry not found",
-        )
+        raise HTTPException(status_code=404, detail="Watch entry not found")
 
     complete(entry)
 
@@ -601,20 +622,13 @@ async def action_reset_media(
 ):
     if not current_user:
         return HTMLResponse(
-            status_code=status.HTTP_401_UNAUTHORIZED
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            headers={"HX-Redirect": "/login"},
         )
 
-    entry = await get_entry(
-        db,
-        entry_id,
-        current_user.id,
-    )
-
+    entry = await get_entry(db, entry_id, current_user.id)
     if not entry:
-        raise HTTPException(
-            status_code=404,
-            detail="Watch entry not found",
-        )
+        raise HTTPException(status_code=404, detail="Watch entry not found")
 
     reset_progress(entry)
 
@@ -637,35 +651,20 @@ async def delete_watch_entry(
 ):
     if not current_user:
         return HTMLResponse(
-            status_code=status.HTTP_401_UNAUTHORIZED
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            headers={"HX-Redirect": "/login"},
         )
 
-    entry = await get_entry(
-        db,
-        entry_id,
-        current_user.id,
-    )
-
+    entry = await get_entry(db, entry_id, current_user.id)
     if not entry:
-        raise HTTPException(
-            status_code=404,
-            detail="Watch entry not found",
-        )
+        raise HTTPException(status_code=404, detail="Watch entry not found")
 
     await db.delete(entry)
     await db.commit()
 
-    card_oob_delete = (
-        f'<div id="entry-card-{entry_id}" '
-        f'hx-swap-oob="delete"></div>'
-    )
-
     return HTMLResponse(
         content=(
-            card_oob_delete
-            + render_toast(
-                "Removed entry",
-                badge_type="remove",
-            )
+            f'<div id="entry-card-{entry_id}" hx-swap-oob="delete"></div>'
+            + render_toast("Removed entry", badge_type="remove")
         )
     )
