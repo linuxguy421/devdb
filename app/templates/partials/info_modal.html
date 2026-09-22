@@ -178,20 +178,64 @@
                     </div>
 
                     {% if media_type == 'tv' %}
-                    <div class="grid grid-cols-2 gap-3">
+                    <div class="grid grid-cols-2 gap-3" data-tv-progress-editor data-season-counts='{{ season_episode_counts|tojson }}'>
                         <div>
                             <label class="block text-xs font-semibold uppercase tracking-wider text-neutral-400 mb-1.5">Watched Through — Season</label>
-                            <input type="number" min="1" name="season"
-                                   value="{{ existing_entry.last_watched_season if is_existing and existing_entry.last_watched_season is not none else '' }}"
-                                   class="w-full bg-neutral-900 border border-neutral-800 rounded-lg p-2.5 text-neutral-200 focus:border-emerald-500 focus:outline-none" placeholder="1">
+                            <select name="season" data-season-select
+                                    class="w-full bg-neutral-900 border border-neutral-800 rounded-lg p-2.5 text-neutral-200 focus:border-emerald-500 focus:outline-none">
+                                <option value="">Select season</option>
+                                {% for season_number, episode_count in season_episode_counts.items() if season_number > 0 and episode_count > 0 %}
+                                    <option value="{{ season_number }}" {% if is_existing and existing_entry.last_watched_season == season_number %}selected{% endif %}>Season {{ season_number }}</option>
+                                {% endfor %}
+                            </select>
                         </div>
                         <div>
                             <label class="block text-xs font-semibold tracking-wider text-neutral-400 mb-1.5">Episode</label>
-                            <input type="number" min="1" name="episode"
-                                   value="{{ existing_entry.last_watched_episode if is_existing and existing_entry.last_watched_episode is not none else '' }}"
-                                   class="w-full bg-neutral-900 border border-neutral-800 rounded-lg p-2.5 text-neutral-200 focus:border-emerald-500 focus:outline-none" placeholder="1">
+                            <select name="episode" data-episode-select disabled
+                                    class="w-full bg-neutral-900 border border-neutral-800 rounded-lg p-2.5 text-neutral-200 focus:border-emerald-500 focus:outline-none disabled:opacity-50">
+                                <option value="">Select episode</option>
+                            </select>
+                            <p data-episode-limit class="mt-1 text-[10px] text-neutral-500"></p>
                         </div>
                     </div>
+                    <script>
+                    (() => {
+                        const root = document.currentScript.previousElementSibling;
+                        if (!root) return;
+                        const seasonSelect = root.querySelector('[data-season-select]');
+                        const episodeSelect = root.querySelector('[data-episode-select]');
+                        const limitText = root.querySelector('[data-episode-limit]');
+                        const counts = JSON.parse(root.dataset.seasonCounts || '{}');
+                        const savedEpisode = {{ existing_entry.last_watched_episode if is_existing and existing_entry.last_watched_episode is not none else 'null' }};
+
+                        const rebuildEpisodes = (preserveValue = true) => {
+                            const season = Number(seasonSelect.value);
+                            const count = Number(counts[String(season)] ?? counts[season] ?? 0);
+                            const previous = preserveValue ? Number(episodeSelect.value || savedEpisode || 0) : 0;
+                            episodeSelect.innerHTML = '<option value="">Select episode</option>';
+
+                            if (!season || !count) {
+                                episodeSelect.disabled = true;
+                                limitText.textContent = '';
+                                return;
+                            }
+
+                            for (let episode = 1; episode <= count; episode++) {
+                                const option = document.createElement('option');
+                                option.value = String(episode);
+                                option.textContent = `Episode ${episode}`;
+                                if (episode === previous) option.selected = true;
+                                episodeSelect.appendChild(option);
+                            }
+
+                            episodeSelect.disabled = false;
+                            limitText.textContent = `Season ${season} has ${count} episode${count === 1 ? '' : 's'}.`;
+                        };
+
+                        seasonSelect.addEventListener('change', () => rebuildEpisodes(false));
+                        rebuildEpisodes(true);
+                    })();
+                    </script>
                     {% endif %}
 
                     <div>

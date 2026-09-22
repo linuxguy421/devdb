@@ -10,6 +10,7 @@ from app.database import get_db
 from app.models import MediaItem, User, WatchEntry
 from app.routers.auth import get_current_user_optional as get_current_user
 from app.services.tmdb import tmdb_service
+from app.services.tv_seasons import get_season_episode_counts
 
 router = APIRouter(prefix="/titles", tags=["Titles"])
 templates = Jinja2Templates(directory="app/templates")
@@ -277,6 +278,9 @@ async def get_title_info_modal(
             persisted_item = existing_entry.media_item
 
     tmdb_data = {}
+    season_episode_counts = {}
+    if persisted_item and media_type == "tv":
+        season_episode_counts = await get_season_episode_counts(db, persisted_item)
     if not persisted_item:
         try:
             tmdb_data = await tmdb_service.get_formatted_details(tmdb_id, media_type) or {}
@@ -292,6 +296,7 @@ async def get_title_info_modal(
             "tmdb_id": tmdb_id,
             "media_type": media_type,
             "existing_entry": existing_entry,
+            "season_episode_counts": season_episode_counts,
             "current_user": current_user,
         },
     )

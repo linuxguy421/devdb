@@ -166,6 +166,8 @@ async def render_info_modal(
     entry: WatchEntry,
     current_user: User,
     tmdb_data: Optional[dict] = None,
+    error_message: Optional[str] = None,
+    db: Optional[AsyncSession] = None,
 ) -> str:
     if tmdb_data is None:
         try:
@@ -175,6 +177,20 @@ async def render_info_modal(
             )
         except Exception:
             tmdb_data = {}
+
+    season_episode_counts = {}
+    if entry.media_item and entry.media_item.media_type == "tv":
+        try:
+            if db is not None:
+                season_episode_counts = await get_season_episode_counts(
+                    db,
+                    entry.media_item,
+                )
+        except Exception:
+            # The persisted season data remains authoritative for validation.
+            # If it cannot be read here, leave the detail display empty rather
+            # than making the modal itself fail.
+            season_episode_counts = {}
 
     return templates.get_template(
         "partials/info_modal.html"
@@ -186,6 +202,8 @@ async def render_info_modal(
             "media_type": entry.media_item.media_type,
             "existing_entry": entry,
             "current_user": current_user,
+            "season_episode_counts": season_episode_counts,
+            "error_message": error_message,
         }
     )
 
@@ -214,7 +232,7 @@ async def get_edit_modal(
         raise HTTPException(status_code=404, detail="Watch entry not found")
 
     return HTMLResponse(
-        await render_info_modal(request, entry, current_user)
+        await render_info_modal(request, entry, current_user, db=db)
     )
 
 
@@ -398,83 +416,127 @@ async def update_watch_entry(
 
     old_status = entry.status
 
-    if status_val is not None:
-        if status_val not in VALID_STATUSES:
-            raise HTTPException(status_code=400, detail="Invalid watch status")
-        if status_val != old_status:
-            set_status(entry, status_val)
+    try:
+        if status_val is not None:
+            if status_val not in VALID_STATUSES:
+                raise HTTPException(status_code=400, detail="Invalid watch status")
+            if status_val != old_status:
+                set_status(entry, status_val)
 
-    rating_num = parse_optional_int(rating, "Rating")
-    if rating_num is not None and not 1 <= rating_num <= 10:
-        raise HTTPException(status_code=400, detail="Rating must be between 1 and 10")
-    if rating is not None:
-        entry.rating = rating_num
-
-    if notes is not None:
-        entry.notes = notes.strip() or None
-
-    if is_private is not None:
-        entry.is_private = str(is_private).lower() in (
-            "true", "1", "on", "yes"
-        )
-
-    is_tv = (
-        entry.media_item is not None
-        and entry.media_item.media_type == "tv"
-    )
-
-    if is_tv:
-        season_num = parse_optional_int(season, "Season")
-        episode_num = parse_optional_int(episode, "Episode")
-
-        if (season_num is None) != (episode_num is None):
+        rating_num = parse_optional_int(rating, "Rating")
+        if rating_num is not None and not 1 <= rating_num <= 10:
             raise HTTPException(
                 status_code=400,
-                detail="Season and episode must be provided together.",
+                detail="Rating must be between 1 and 10",
+            )
+        if rating is not None:
+            entry.rating = rating_num
+
+        if notes is not None:
+            entry.notes = notes.strip() or None
+
+        if is_private is not None:
+            entry.is_private = str(is_private).lower() in (
+                "true", "1", "on", "yes"
             )
 
-        if season_num is not None:
-            if season_num < 1 or episode_num < 1:
+        is_tv = (
+            entry.media_item is not None
+            and entry.media_item.media_type == "tv"
+        )
+
+        if is_tv:
+            season_num = parse_optional_int(season, "Season")
+            episode_num = parse_optional_int(episode, "Episode")
+
+            if (season_num is None) != (episode_num is None):
                 raise HTTPException(
                     status_code=400,
-                    detail="Season and episode must be at least 1.",
+                    detail="Season and episode must be provided together.",
                 )
 
-            counts = await get_season_episode_counts(
-                db,
-                entry.media_item,
+            if season_num is not None:
+                if season_num < 1 or episode_num < 1:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Season and episode must be at least 1.",
+                    )
+
+                counts = await get_season_episode_counts(
+                    db,
+                    entry.media_item,
+                )
+                max_episode = counts.get(season_num)
+
+                if max_episode is None:
+                    available = (
+                        ", ".join(
+                            f"S{season}: {count} episodes"
+                            for season, count in sorted(counts.items())
+                        )
+                        if counts
+                        else "no season information is available"
+                    )
+                    raise HTTPException(
+                        status_code=400,
+                        detail=(
+                            f"Season {season_num} is not available for this series "
+                            f"({available})."
+                        ),
+                    )
+
+                # This is the authoritative server-side boundary. A user can
+                # never save S1E10 when persisted season data says S1 has 9.
+                if episode_num > max_episode:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=(
+                            f"Season {season_num} has only {max_episode} "
+                            f"episodes. Episode {episode_num} cannot be saved."
+                        ),
+                    )
+
+                entry.last_watched_season = season_num
+                entry.last_watched_episode = episode_num
+
+        if entry.status == "want_to_watch":
+            entry.last_watched_season = None
+            entry.last_watched_episode = None
+            entry.completed_at = None
+        elif entry.status == "in_progress":
+            entry.completed_at = None
+        elif entry.status == "watched":
+            if old_status != "watched":
+                entry.completed_at = datetime.now(timezone.utc)
+
+        await db.commit()
+        await db.refresh(entry)
+
+    except HTTPException as exc:
+        if exc.status_code != 400:
+            raise
+
+        # Do not leave a partially edited ORM object in the session after a
+        # rejected save. Re-render the same edit surface with a useful error
+        # instead of returning a bare 400 page.
+        await db.rollback()
+        entry = await get_entry(db, entry_id, current_user.id)
+        if not entry:
+            raise HTTPException(status_code=404, detail="Watch entry not found")
+
+        return HTMLResponse(
+            content=await render_info_modal(
+                request,
+                entry,
+                current_user,
+                db=db,
+                error_message=str(exc.detail),
             )
-            max_episode = counts.get(season_num)
-            if max_episode is None:
-                raise HTTPException(
-                    status_code=400,
-                    detail="That season is not available.",
-                )
-            if episode_num > max_episode:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Season {season_num} has only {max_episode} episodes.",
-                )
+        )
 
-            entry.last_watched_season = season_num
-            entry.last_watched_episode = episode_num
-
-    if entry.status == "want_to_watch":
-        entry.last_watched_season = None
-        entry.last_watched_episode = None
-        entry.completed_at = None
-    elif entry.status == "in_progress":
-        entry.completed_at = None
-    elif entry.status == "watched":
-        if old_status != "watched":
-            entry.completed_at = datetime.now(timezone.utc)
-
-    await db.commit()
-    await db.refresh(entry)
-
-    # The Edit form targets #info-modal with hx-swap="outerHTML".
-    # Return only out-of-band updates here so HTMX removes the modal target
-    # after processing the updated card/toast, closing Edit automatically.
+    # Successful edit: the form targets #info-modal with hx-swap="outerHTML".
+    # We intentionally return only OOB card/toast updates, so the modal target
+    # disappears and Edit closes automatically.
     return HTMLResponse(
         content=(
             render_card_oob(entry)
