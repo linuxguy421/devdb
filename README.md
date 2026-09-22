@@ -23,3 +23,10 @@ Rebuild:
   docker compose up -d
 
 This patch assumes the reconciled 12-fix bundle is already installed.
+
+
+Task 13 follow-up: Edit save validation
+- Successful Edit saves still close the modal and update the card.
+- Validation failures re-render the Edit modal with an inline error instead of a bare 400 response.
+- TV progress is server-validated against persisted TVSeason episode counts; impossible episodes such as S1E10 for a 9-episode season cannot be saved.
+- No migration is required.
