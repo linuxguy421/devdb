@@ -52,7 +52,7 @@
                 <div class="w-full text-xs font-bold text-emerald-400 bg-emerald-950/80 border border-emerald-800/80 py-2 rounded-lg flex items-center justify-center gap-1.5">
                     <i class="fa-solid fa-check text-[10px]"></i> Watched
                 </div>
-            {% elif status == 'to_watch' %}
+            {% elif status == 'want_to_watch' %}
                 <button
                     hx-post="/watch-entries/add"
                     hx-vals='{"tmdb_id": {{ item.id }}, "media_type": "{{ item.media_type }}", "status_val": "watched"}'
@@ -66,7 +66,7 @@
             {% else %}
                 <button
                     hx-post="/watch-entries/add"
-                    hx-vals='{"tmdb_id": {{ item.id }}, "media_type": "{{ item.media_type }}", "status_val": "to_watch"}'
+                    hx-vals='{"tmdb_id": {{ item.id }}, "media_type": "{{ item.media_type }}", "status_val": "want_to_watch"}'
                     hx-target="#card-{{ item.id }}"
                     hx-swap="outerHTML"
                     class="flex-1 text-xs font-semibold bg-slate-800 hover:bg-indigo-600 text-slate-200 hover:text-white py-2 rounded-lg transition flex items-center justify-center gap-1 cursor-pointer"

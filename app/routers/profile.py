@@ -92,7 +92,7 @@ async def get_profile_tab(
         context["stats"] = {
             "total_entries": len(entries),
             "watched": len([e for e in entries if e.status == "watched"]),
-            "to_watch": len([e for e in entries if e.status in ("to_watch", "plan_to_watch")]),
+            "to_watch": len([e for e in entries if e.status == "want_to_watch"]),
         }
 
     template_map = {

@@ -1,26 +1,14 @@
-from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from app import models  # Import models so Base metadata is populated
 from app.config import settings
-from app.database import Base, engine
-from app.routers import auth, pages, titles, users, watch_entries, buddies, to_watch, profile
-
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    # Auto-create tables on startup using async engine
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    yield
+from app.routers import auth, pages, titles, users, watch_entries, buddies, profile
 
 
 app = FastAPI(
     title="DevDB",
     debug=settings.DEBUG,
-    lifespan=lifespan,
 )
 
 # Mount static directory for logo and asset serving
@@ -53,5 +41,4 @@ app.include_router(watch_entries.router)
 app.include_router(users.router)
 app.include_router(pages.router)
 app.include_router(buddies.router)
-app.include_router(to_watch.router)
 app.include_router(profile.router)

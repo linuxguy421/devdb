@@ -1,5 +1,5 @@
 {% macro render_card(item) %}
-<div hx-get="/titles/info-modal/{{ item.entry.tmdb_id }}/{{ item.entry.media_type }}"
+<div hx-get="/titles/info-modal/{{ item.entry.media_item.tmdb_id }}/{{ item.entry.media_item.media_type }}"
      hx-target="#modal-container"
      hx-swap="innerHTML"
      class="p-4 bg-neutral-900 border border-neutral-800 hover:border-neutral-700 hover:bg-neutral-800/80 rounded-xl flex flex-col justify-between space-y-3 cursor-pointer transition">

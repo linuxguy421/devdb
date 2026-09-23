@@ -9,6 +9,7 @@ from sqlalchemy import (
     Float,
     ForeignKey,
     Integer,
+    BigInteger,
     String,
     Text,
     UniqueConstraint,
@@ -149,8 +150,8 @@ class MediaItem(Base):
     )
 
 # Financial & Status Metadata
-    budget = Column(Integer, nullable=True)  # USD
-    revenue = Column(Integer, nullable=True)  # USD
+    budget = Column(BigInteger, nullable=True)  # USD
+    revenue = Column(BigInteger, nullable=True)  # USD
     status = Column(String(50), nullable=True)  # e.g., "Released", "In Production"
     tagline = Column(Text, nullable=True)
     production_companies = Column(

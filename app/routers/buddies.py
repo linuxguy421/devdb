@@ -322,7 +322,7 @@ async def get_mutual_watchlist(
         .options(selectinload(WatchEntry.media_item))
         .where(
             WatchEntry.user_id == current_user.id,
-            WatchEntry.status == "to_watch"
+            WatchEntry.status == "want_to_watch"
         )
     )
     my_entries = (await db.execute(my_stmt)).scalars().all()
@@ -339,7 +339,7 @@ async def get_mutual_watchlist(
         .options(selectinload(WatchEntry.media_item))
         .where(
             WatchEntry.user_id.in_(buddy_ids),
-            WatchEntry.status == "to_watch"
+            WatchEntry.status == "want_to_watch"
         )
     )
     results = (await db.execute(buddy_stmt)).all()

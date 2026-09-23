@@ -89,7 +89,7 @@
                             </button>
                             <button type="button"
                                     hx-post="/watch-entries"
-                                    hx-vals='{"tmdb_id": {{ item.id }}, "media_type": "{{ media_kind }}", "status_val": "to_watch"}'
+                                    hx-vals='{"tmdb_id": {{ item.id }}, "media_type": "{{ media_kind }}", "status_val": "want_to_watch"}'
                                     hx-target="#watch-btn-{{ item.id }}"
                                     hx-swap="outerHTML"
                                     class="flex-1 text-xs font-semibold bg-neutral-800 text-neutral-200 hover:bg-neutral-700 hover:text-white px-3 py-1.5 rounded-full border border-neutral-700/60 transition-all text-center cursor-pointer">
