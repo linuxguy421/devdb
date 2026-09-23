@@ -1,33 +1,105 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
     <!-- Header & Status Filter Tabs -->
-    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-neutral-800 pb-5">
+    <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-5 border-b border-neutral-800 pb-5">
         <div>
             <h1 class="text-3xl font-bold tracking-tight text-white">My Media</h1>
-            <p class="text-sm text-neutral-400 mt-1">Track progress, manage watchlist, and log completed titles.</p>
+            <p class="text-sm text-neutral-400 mt-1">Track progress, manage your watchlist, and browse your collection.</p>
         </div>
 
-        <nav class="flex items-center space-x-1 bg-neutral-900/80 p-1 rounded-xl border border-neutral-800 self-start sm:self-auto">
-            <a href="/my-media?status=in_progress" 
-               class="px-3.5 py-1.5 rounded-lg text-xs font-medium transition-colors {% if current_status == 'in_progress' %}bg-emerald-500/20 text-emerald-400 border border-emerald-500/30{% else %}text-neutral-400 hover:text-white{% endif %}">
+        <nav class="flex items-center space-x-1 bg-neutral-900/80 p-1 rounded-xl border border-neutral-800 self-start lg:self-auto overflow-x-auto max-w-full">
+            <a href="/my-media{% if filter_query %}?status=all&{{ filter_query }}{% else %}?status=all{% endif %}"
+               class="px-3.5 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap {% if current_status == 'all' %}bg-emerald-500/20 text-emerald-400 border border-emerald-500/30{% else %}text-neutral-400 hover:text-white{% endif %}">
+               All
+            </a>
+            <a href="/my-media?status=in_progress{% if filter_query %}&{{ filter_query }}{% endif %}"
+               class="px-3.5 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap {% if current_status == 'in_progress' %}bg-emerald-500/20 text-emerald-400 border border-emerald-500/30{% else %}text-neutral-400 hover:text-white{% endif %}">
                In Progress
             </a>
-            <a href="/my-media?status=want_to_watch" 
-               class="px-3.5 py-1.5 rounded-lg text-xs font-medium transition-colors {% if current_status == 'want_to_watch' %}bg-emerald-500/20 text-emerald-400 border border-emerald-500/30{% else %}text-neutral-400 hover:text-white{% endif %}">
+            <a href="/my-media?status=want_to_watch{% if filter_query %}&{{ filter_query }}{% endif %}"
+               class="px-3.5 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap {% if current_status == 'want_to_watch' %}bg-emerald-500/20 text-emerald-400 border border-emerald-500/30{% else %}text-neutral-400 hover:text-white{% endif %}">
                Want to Watch
             </a>
-            <a href="/my-media?status=watched" 
-               class="px-3.5 py-1.5 rounded-lg text-xs font-medium transition-colors {% if current_status == 'watched' %}bg-emerald-500/20 text-emerald-400 border border-emerald-500/30{% else %}text-neutral-400 hover:text-white{% endif %}">
+            <a href="/my-media?status=watched{% if filter_query %}&{{ filter_query }}{% endif %}"
+               class="px-3.5 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap {% if current_status == 'watched' %}bg-emerald-500/20 text-emerald-400 border border-emerald-500/30{% else %}text-neutral-400 hover:text-white{% endif %}">
                Watched
-            </a>
-            <a href="/my-media?status=all" 
-               class="px-3.5 py-1.5 rounded-lg text-xs font-medium transition-colors {% if current_status == 'all' %}bg-emerald-500/20 text-emerald-400 border border-emerald-500/30{% else %}text-neutral-400 hover:text-white{% endif %}">
-               All
             </a>
         </nav>
     </div>
+
+    <!-- Collection Filters -->
+    <form method="get" action="/my-media" class="rounded-2xl border border-neutral-800 bg-neutral-900/60 p-4 sm:p-5">
+        <input type="hidden" name="status" value="{{ current_status }}">
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
+            <label class="lg:col-span-2">
+                <span class="block text-[11px] font-semibold uppercase tracking-wider text-neutral-500 mb-1.5">Search</span>
+                <input
+                    type="search"
+                    name="q"
+                    value="{{ search_query }}"
+                    placeholder="Search your media..."
+                    class="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-white placeholder:text-neutral-600 focus:border-emerald-500/50 focus:outline-none"
+                >
+            </label>
+
+            <label>
+                <span class="block text-[11px] font-semibold uppercase tracking-wider text-neutral-500 mb-1.5">Type</span>
+                <select name="media_type" class="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-white focus:border-emerald-500/50 focus:outline-none">
+                    <option value="all" {% if current_media_type == 'all' %}selected{% endif %}>Movies + TV</option>
+                    <option value="movie" {% if current_media_type == 'movie' %}selected{% endif %}>Movies</option>
+                    <option value="tv" {% if current_media_type == 'tv' %}selected{% endif %}>TV</option>
+                </select>
+            </label>
+
+            <label>
+                <span class="block text-[11px] font-semibold uppercase tracking-wider text-neutral-500 mb-1.5">Year</span>
+                <select name="year" class="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-white focus:border-emerald-500/50 focus:outline-none">
+                    <option value="all">All Years</option>
+                    {% for value in years %}
+                        <option value="{{ value }}" {% if current_year == value %}selected{% endif %}>{{ value }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+
+            <label>
+                <span class="block text-[11px] font-semibold uppercase tracking-wider text-neutral-500 mb-1.5">Genre</span>
+                <select name="genre" class="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-white focus:border-emerald-500/50 focus:outline-none">
+                    <option value="all">All Genres</option>
+                    {% for value in genres %}
+                        <option value="{{ value }}" {% if current_genre == value %}selected{% endif %}>{{ value }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+
+            <label>
+                <span class="block text-[11px] font-semibold uppercase tracking-wider text-neutral-500 mb-1.5">Sort</span>
+                <select name="sort" class="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-white focus:border-emerald-500/50 focus:outline-none">
+                    <option value="recent" {% if current_sort == 'recent' %}selected{% endif %}>Recently Updated</option>
+                    <option value="title" {% if current_sort == 'title' %}selected{% endif %}>Title</option>
+                    <option value="year_desc" {% if current_sort == 'year_desc' %}selected{% endif %}>Year: Newest</option>
+                    <option value="year_asc" {% if current_sort == 'year_asc' %}selected{% endif %}>Year: Oldest</option>
+                    <option value="tmdb_rating" {% if current_sort == 'tmdb_rating' %}selected{% endif %}>TMDB Rating</option>
+                </select>
+            </label>
+        </div>
+
+        <div class="flex flex-wrap items-center justify-between gap-3 mt-4 pt-4 border-t border-neutral-800/70">
+            <p class="text-xs text-neutral-500">
+                Showing <span class="text-neutral-300 font-semibold">{{ entries|length }}</span> title{% if entries|length != 1 %}s{% endif %}
+            </p>
+            <div class="flex items-center gap-2">
+                <a href="/my-media?status={{ current_status }}" class="px-3 py-2 rounded-xl text-xs font-medium text-neutral-400 hover:text-white hover:bg-neutral-800 transition-colors">
+                    Reset filters
+                </a>
+                <button type="submit" class="px-4 py-2 rounded-xl text-xs font-semibold bg-emerald-500 text-neutral-950 hover:bg-emerald-400 transition-colors">
+                    Apply Filters
+                </button>
+            </div>
+        </div>
+    </form>
 
     <!-- Media Grid -->
     <div id="media-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-5">
@@ -35,7 +107,8 @@
             {% include "partials/my_media_card.html" %}
         {% else %}
             <div class="col-span-full py-16 text-center bg-neutral-900/40 rounded-2xl border border-dashed border-neutral-800">
-                <p class="text-neutral-400 text-sm font-medium">No titles found in this list.</p>
+                <p class="text-neutral-400 text-sm font-medium">No titles match these filters.</p>
+                <a href="/my-media?status={{ current_status }}" class="inline-block mt-3 text-xs font-semibold text-emerald-400 hover:text-emerald-300">Clear filters</a>
             </div>
         {% endfor %}
     </div>
