@@ -1,3 +1,8 @@
+import os
+
+os.environ.setdefault("SECRET_KEY", "devdb-test-secret")
+os.environ.setdefault("DATABASE_URL", "sqlite+aiosqlite:///:memory:")
+
 import pytest_asyncio
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from app.database import Base

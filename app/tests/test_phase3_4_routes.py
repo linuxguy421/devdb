@@ -139,7 +139,8 @@ async def test_existing_entry_update_saves_rating_and_notes(db_session):
     assert entry.rating == 9
     assert entry.notes == "Excellent."
     assert entry.completed_at is not None
-    assert "Save Changes" in res.text
+    assert "Saved changes." in res.text
+    assert "entry-card-" in res.text
     assert "Excellent." in res.text
 
     app.dependency_overrides.clear()
