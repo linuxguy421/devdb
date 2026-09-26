@@ -22,7 +22,7 @@ from app.services.progress import (
     start_watching,
 )
 from app.services.tmdb import tmdb_service
-from app.services.tv_seasons import get_season_episode_counts
+from app.services.tv_seasons import get_season_episode_counts, get_tv_seasons
 
 
 router = APIRouter(prefix="/watch-entries", tags=["Watch Entries"])
@@ -179,6 +179,7 @@ async def render_info_modal(
             tmdb_data = {}
 
     season_episode_counts = {}
+    tv_seasons = []
     if entry.media_item and entry.media_item.media_type == "tv":
         try:
             if db is not None:
@@ -186,6 +187,7 @@ async def render_info_modal(
                     db,
                     entry.media_item,
                 )
+                tv_seasons = await get_tv_seasons(db, entry.media_item.id)
         except Exception:
             # The persisted season data remains authoritative for validation.
             # If it cannot be read here, leave the detail display empty rather
@@ -203,6 +205,7 @@ async def render_info_modal(
             "existing_entry": entry,
             "current_user": current_user,
             "season_episode_counts": season_episode_counts,
+            "tv_seasons": tv_seasons,
             "error_message": error_message,
         }
     )
@@ -365,6 +368,7 @@ async def create_watch_entry(
             request,
             entry,
             current_user,
+            db=db,
         )
         return HTMLResponse(
             content=(

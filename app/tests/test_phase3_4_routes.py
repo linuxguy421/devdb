@@ -2,10 +2,13 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from httpx import ASGITransport, AsyncClient
 from starlette.responses import HTMLResponse
+from sqlalchemy import select
+from sqlalchemy.orm import joinedload
 
 from app.database import get_db
 from app.main import app
 from app.models import MediaItem, TVSeason, User, WatchEntry
+from app.routers.watch_entries import render_info_modal
 from app.routers.auth import get_current_user_optional
 
 
@@ -144,3 +147,39 @@ async def test_existing_entry_update_saves_rating_and_notes(db_session):
     assert "Excellent." in res.text
 
     app.dependency_overrides.clear()
+
+
+@pytest.mark.asyncio
+async def test_tv_info_modal_does_not_lazy_load_seasons(db_session):
+    user = User(username="modal_tester", email="modal@example.com", hashed_password="pw")
+    item = MediaItem(
+        tmdb_id=909,
+        media_type="tv",
+        title="Test Series",
+        total_seasons=1,
+        total_episodes=9,
+    )
+    db_session.add_all([user, item])
+    await db_session.commit()
+
+    db_session.add(TVSeason(media_item_id=item.id, season_number=1, episode_count=9))
+    entry = WatchEntry(user_id=user.id, media_item_id=item.id, status="want_to_watch")
+    db_session.add(entry)
+    await db_session.commit()
+
+    result = await db_session.execute(
+        select(WatchEntry)
+        .options(joinedload(WatchEntry.media_item))
+        .where(WatchEntry.id == entry.id)
+    )
+    entry = result.scalar_one()
+
+    html = await render_info_modal(
+        request=None,
+        entry=entry,
+        current_user=user,
+        tmdb_data={},
+        db=db_session,
+    )
+
+    assert "S01 · 9 eps" in html

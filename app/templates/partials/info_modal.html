@@ -136,9 +136,9 @@
                     {% if is_existing and existing_entry.last_watched_season is not none and existing_entry.last_watched_episode is not none %}
                         <p class="text-xs text-neutral-300">Watched through <strong>S{{ "%02d"|format(existing_entry.last_watched_season) }}E{{ "%02d"|format(existing_entry.last_watched_episode) }}</strong></p>
                     {% endif %}
-                    {% if m_item and m_item.tv_seasons %}
+                    {% if tv_seasons %}
                         <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                            {% for season in m_item.tv_seasons if season.season_number > 0 %}
+                            {% for season in tv_seasons if season.season_number > 0 %}
                                 <div class="rounded-lg border border-neutral-800 bg-neutral-900 p-2.5">
                                     <div class="text-xs font-semibold text-neutral-200">S{{ "%02d"|format(season.season_number) }} · {{ season.episode_count }} eps</div>
                                     {% if season.air_date %}<div class="text-[10px] text-neutral-500 mt-1">{{ season.air_date }}</div>{% endif %}
