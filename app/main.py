@@ -2,6 +2,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
+from app.middleware import SecurityMiddleware
+
 from app.config import settings
 from app.routers import auth, pages, titles, users, watch_entries, buddies, profile
 
@@ -13,6 +15,7 @@ app = FastAPI(
 
 # Mount static directory for logo and asset serving
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
+app.add_middleware(SecurityMiddleware)
 
 # Permit origins across localhost and LAN
 origins = [

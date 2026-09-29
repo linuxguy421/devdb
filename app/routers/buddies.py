@@ -9,13 +9,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.database import get_db
+from app.security import require_csrf
 from app.models import Friendship, MediaItem, Recommendation, User, WatchEntry
 from app.routers.auth import get_current_user
 from app.services.tmdb import tmdb_service
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/buddies", tags=["buddies"])
+router = APIRouter(prefix="/buddies", tags=["buddies"], dependencies=[Depends(require_csrf)])
 templates = Jinja2Templates(directory="app/templates")
 
 

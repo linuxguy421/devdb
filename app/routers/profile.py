@@ -7,11 +7,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.database import get_db
+from app.security import require_csrf
 from app.models import Friendship, RecoveryCode, User, WatchEntry
 from app.routers.auth import get_current_user_optional as get_current_user
 from app.services.recovery_codes import generate_user_recovery_codes
 
-router = APIRouter(prefix="/profile", tags=["Profile"])
+router = APIRouter(prefix="/profile", tags=["Profile"], dependencies=[Depends(require_csrf)])
 templates = Jinja2Templates(directory="app/templates")
 
 
@@ -139,11 +140,18 @@ async def change_password(
     if not current_user:
         return HTMLResponse(status_code=401)
 
-    from app.routers.auth import get_password_hash, verify_password
+    from app.routers.auth import get_password_hash, validate_password, verify_password
 
     if not verify_password(current_password, current_user.hashed_password):
         return HTMLResponse(
             "<div class='p-3 rounded-xl bg-red-950/40 border border-red-800/60 text-red-300 text-xs font-semibold'>Incorrect current password.</div>",
+            status_code=400,
+        )
+
+    password_error = validate_password(new_password)
+    if password_error:
+        return HTMLResponse(
+            f"<div class='p-3 rounded-xl bg-red-950/40 border border-red-800/60 text-red-300 text-xs font-semibold'>{password_error}</div>",
             status_code=400,
         )
 

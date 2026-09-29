@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
 from app.database import get_db
+from app.security import require_csrf
 from app.models import MediaItem, User, WatchEntry
 from app.routers.auth import get_current_user_optional as get_current_user
 from app.services.media_sync import get_or_sync_media_item
@@ -25,7 +26,7 @@ from app.services.tmdb import tmdb_service
 from app.services.tv_seasons import get_season_episode_counts, get_tv_seasons
 
 
-router = APIRouter(prefix="/watch-entries", tags=["Watch Entries"])
+router = APIRouter(prefix="/watch-entries", tags=["Watch Entries"], dependencies=[Depends(require_csrf)])
 templates = Jinja2Templates(directory="app/templates")
 
 VALID_STATUSES = {

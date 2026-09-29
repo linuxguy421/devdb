@@ -31,6 +31,8 @@ async def test_my_media_page_and_redirects(db_session):
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        await ac.get("/watched")
+        csrf_headers = {"X-CSRF-Token": ac.cookies["csrf_token"]}
         with patch("starlette.templating.Jinja2Templates.TemplateResponse", return_value=HTMLResponse("OK")):
             res = await ac.get("/my-media?status=in_progress")
             assert res.status_code == 200
@@ -65,18 +67,20 @@ async def test_watch_entry_htmx_actions(db_session):
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        await ac.get("/watched")
+        csrf_headers = {"X-CSRF-Token": ac.cookies["csrf_token"]}
         with patch("starlette.templating.Jinja2Templates.get_template") as mock_get_template:
             mock_get_template.return_value.render.return_value = "<div>Mock Card</div>"
 
             # Start watching
-            res = await ac.post(f"/watch-entries/{entry.id}/start")
+            res = await ac.post(f"/watch-entries/{entry.id}/start", headers=csrf_headers)
             assert res.status_code == 200
 
             await db_session.refresh(entry)
             assert entry.status == "in_progress"
 
             # Increment progress
-            res_prog = await ac.post(f"/watch-entries/{entry.id}/progress")
+            res_prog = await ac.post(f"/watch-entries/{entry.id}/progress", headers=csrf_headers)
             assert res_prog.status_code == 200
 
             await db_session.refresh(entry)
@@ -84,7 +88,7 @@ async def test_watch_entry_htmx_actions(db_session):
             assert entry.last_watched_episode == 1
 
             # Reset
-            res_reset = await ac.post(f"/watch-entries/{entry.id}/reset")
+            res_reset = await ac.post(f"/watch-entries/{entry.id}/reset", headers=csrf_headers)
             assert res_reset.status_code == 200
 
             await db_session.refresh(entry)
@@ -125,8 +129,11 @@ async def test_existing_entry_update_saves_rating_and_notes(db_session):
         }),
     ):
         async with AsyncClient(transport=transport, base_url="http://test") as ac:
+            await ac.get("/watched")
+            csrf_headers = {"X-CSRF-Token": ac.cookies["csrf_token"]}
             res = await ac.post(
                 f"/watch-entries/{entry.id}/update",
+                headers=csrf_headers,
                 data={
                     "status_val": "watched",
                     "rating": "9",

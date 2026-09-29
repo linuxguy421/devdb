@@ -4,7 +4,17 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}DevDB{% endblock %}</title>
+    <meta name="csrf-token" content="{{ request.state.csrf_token }}">
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <script>
+        document.addEventListener("htmx:configRequest", function (event) {
+            const token = document.cookie
+                .split("; ")
+                .find((row) => row.startsWith("csrf_token="))
+                ?.split("=")[1];
+            if (token) event.detail.headers["X-CSRF-Token"] = decodeURIComponent(token);
+        });
+    </script>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="h-full flex flex-col font-sans antialiased bg-neutral-950 text-neutral-100">

@@ -1,9 +1,11 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import model_validator
 
 
 class Settings(BaseSettings):
     PROJECT_NAME: str = "DevDB"
     DEBUG: bool = False
+    ENVIRONMENT: str = "development"
 
     SECRET_KEY: str
     ALGORITHM: str = "HS256"
@@ -19,5 +21,12 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
+    @model_validator(mode="after")
+    def validate_production_security(self):
+        if self.ENVIRONMENT.strip().lower() == "production" and not self.COOKIE_SECURE:
+            raise ValueError("COOKIE_SECURE must be true when ENVIRONMENT=production")
+        if self.ENVIRONMENT.strip().lower() == "production" and self.DEBUG:
+            raise ValueError("DEBUG must be false when ENVIRONMENT=production")
+        return self
 
 settings = Settings()

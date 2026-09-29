@@ -53,9 +53,12 @@
                     <span class="text-sm font-medium text-neutral-200">{{ current_user.username }}</span>
                 </button>
 
-                <a href="/logout" class="text-xs font-semibold text-neutral-400 hover:text-red-400 px-3 py-1.5 rounded-full hover:bg-neutral-900 transition">
-                    Logout
-                </a>
+                <form action="/logout" method="POST" class="inline">
+                    <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+                    <button type="submit" class="text-xs font-semibold text-neutral-400 hover:text-red-400 px-3 py-1.5 rounded-full hover:bg-neutral-900 transition">
+                        Logout
+                    </button>
+                </form>
             {% else %}
                 <a href="/login" class="text-sm font-semibold text-neutral-300 hover:text-white transition">Log In</a>
                 <a href="/register" class="text-sm font-extrabold bg-emerald-500 text-neutral-950 hover:bg-emerald-400 px-4 py-1.5 rounded-full shadow-lg shadow-emerald-950/40 transition">Sign Up</a>

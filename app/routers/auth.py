@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta, timezone
 from typing import Optional
+from urllib.parse import urlencode
 import bcrypt
 from fastapi import APIRouter, Depends, Form, HTTPException, Request, status
 from fastapi.responses import RedirectResponse
@@ -11,23 +12,39 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.database import get_db
+from app.security import require_csrf
 from app.models import User
 from app.services.recovery_codes import verify_and_consume_code
 
-router = APIRouter(tags=["Auth"])
+router = APIRouter(tags=["Auth"], dependencies=[Depends(require_csrf)])
 templates = Jinja2Templates(directory="app/templates")
 
 BCRYPT_MAX_BYTES = 72
+MIN_PASSWORD_BYTES = 8
+
+
+def validate_password(password: str) -> str | None:
+    byte_length = len(password.encode("utf-8"))
+    if byte_length < MIN_PASSWORD_BYTES:
+        return f"Password must be at least {MIN_PASSWORD_BYTES} bytes long."
+    if byte_length > BCRYPT_MAX_BYTES:
+        return f"Password must be at most {BCRYPT_MAX_BYTES} UTF-8 bytes long."
+    return None
 
 
 def get_password_hash(password: str) -> str:
-    pwd_bytes = password.encode("utf-8")[:BCRYPT_MAX_BYTES]
+    validation_error = validate_password(password)
+    if validation_error:
+        raise ValueError(validation_error)
+    pwd_bytes = password.encode("utf-8")
     salt = bcrypt.gensalt()
     return bcrypt.hashpw(pwd_bytes, salt).decode("utf-8")
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    pwd_bytes = plain_password.encode("utf-8")[:BCRYPT_MAX_BYTES]
+    if validate_password(plain_password):
+        return False
+    pwd_bytes = plain_password.encode("utf-8")
     hashed_bytes = hashed_password.encode("utf-8")
     return bcrypt.checkpw(pwd_bytes, hashed_bytes)
 
@@ -99,6 +116,13 @@ async def register_post(
     res = await db.execute(stmt)
     if res.scalar_one_or_none():
         return RedirectResponse(url="/register?error=exists", status_code=status.HTTP_303_SEE_OTHER)
+
+    password_error = validate_password(password)
+    if password_error:
+        return RedirectResponse(
+            url=f"/register?{urlencode({'error': password_error})}",
+            status_code=status.HTTP_303_SEE_OTHER,
+        )
 
     new_user = User(
         username=username,
@@ -184,6 +208,19 @@ async def forgot_password_post(
             status_code=status.HTTP_400_BAD_REQUEST,
         )
 
+    password_error = validate_password(new_password)
+    if password_error:
+        return templates.TemplateResponse(
+            request=request,
+            name="forgot_password.html",
+            context={
+                "request": request,
+                "error": password_error,
+                "username": username,
+            },
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+
     is_valid = await verify_and_consume_code(db, user, recovery_code)
     if not is_valid:
         return templates.TemplateResponse(
@@ -206,7 +243,7 @@ async def forgot_password_post(
     )
 
 
-@router.get("/logout")
+@router.post("/logout")
 async def logout():
     response = RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
     response.delete_cookie("access_token")
