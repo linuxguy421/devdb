@@ -193,6 +193,9 @@ async def render_info_modal(
                 )
                 tv_seasons = await get_tv_seasons(db, entry.media_item.id)
         except Exception:
+            # The persisted season data remains authoritative for validation.
+            # If it cannot be read here, leave the detail display empty rather
+            # than making the modal itself fail.
             season_episode_counts = {}
 
     return templates.get_template(
@@ -219,6 +222,12 @@ async def get_edit_modal(
     db: AsyncSession = Depends(get_db),
     current_user: Optional[User] = Depends(get_current_user),
 ):
+    """
+    Compatibility route for browse/search controls.
+
+    The application now uses the same editable info modal everywhere;
+    this route remains so older HTMX controls do not break.
+    """
     if not current_user:
         return HTMLResponse(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -488,6 +497,8 @@ async def update_watch_entry(
                         ),
                     )
 
+                # This is the authoritative server-side boundary. A user can
+                # never save S1E10 when persisted season data says S1 has 9.
                 if episode_num > max_episode:
                     raise HTTPException(
                         status_code=400,
@@ -517,6 +528,9 @@ async def update_watch_entry(
         if exc.status_code != 400:
             raise
 
+        # Do not leave a partially edited ORM object in the session after a
+        # rejected save. Re-render the same edit surface with a useful error
+        # instead of returning a bare 400 page.
         await db.rollback()
         entry = await get_entry(db, entry_id, current_user.id)
         if not entry:
@@ -532,10 +546,74 @@ async def update_watch_entry(
             )
         )
 
+    # Successful edit: the form targets #info-modal with hx-swap="outerHTML".
+    # We intentionally return only OOB card/toast updates, so the modal target
+    # disappears and Edit closes automatically.
     entry = await get_entry(db, entry_id, current_user.id)
     return HTMLResponse(
         content=(
             render_card_oob(entry)
             + render_toast("Saved changes.")
         )
+    )
+
+
+@router.post("/{entry_id}/start", response_class=HTMLResponse)
+async def action_start_watching(
+    request: Request,
+    entry_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user),
+):
+    if not current_user:
+        return HTMLResponse(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            headers={"HX-Redirect": "/login"},
+        )
+
+    entry = await get_entry(db, entry_id, current_user.id)
+    if not entry:
+        raise HTTPException(status_code=404, detail="Watch entry not found")
+
+    start_watching(entry)
+
+    await db.commit()
+    entry = await get_entry(db, entry_id, current_user.id)
+
+    return render_entry_response(
+        request,
+        entry,
+        "Moved to In Progress",
+    )
+
+
+@router.post("/{entry_id}/progress", response_class=HTMLResponse)
+async def action_increment_progress(
+    request: Request,
+    entry_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user),
+):
+    if not current_user:
+        return HTMLResponse(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            headers={"HX-Redirect": "/login"},
+        )
+
+    entry = await get_entry(db, entry_id, current_user.id)
+    if not entry:
+        raise HTTPException(status_code=404, detail="Watch entry not found")
+
+    try:
+        await mark_next_episode_watched(db, entry)
+    except ProgressDomainError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    await db.commit()
+    entry = await get_entry(db, entry_id, current_user.id)
+
+    return render_entry_response(
+        request,
+        entry,
+        "Progress updated",
     )
