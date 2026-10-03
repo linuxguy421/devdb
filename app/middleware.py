@@ -84,8 +84,11 @@ class SecurityMiddleware(BaseHTTPMiddleware):
             "Security check failed. Please refresh the page and try again."
         )
 
+        # Ensure the re-rendered form includes a valid token for the next submit.
+        request.state.csrf_token = token
+
         if path == "/login":
-            response = templates.TemplateResponse(
+            return templates.TemplateResponse(
                 request=request,
                 name="login.html",
                 context={
@@ -95,12 +98,9 @@ class SecurityMiddleware(BaseHTTPMiddleware):
                 },
                 status_code=403,
             )
-            # Ensure the template still has a valid token for the next attempt.
-            request.state.csrf_token = token
-            return response
 
         if path == "/register":
-            response = templates.TemplateResponse(
+            return templates.TemplateResponse(
                 request=request,
                 name="register.html",
                 context={
@@ -109,11 +109,9 @@ class SecurityMiddleware(BaseHTTPMiddleware):
                 },
                 status_code=403,
             )
-            request.state.csrf_token = token
-            return response
 
         if path == "/forgot-password":
-            response = templates.TemplateResponse(
+            return templates.TemplateResponse(
                 request=request,
                 name="forgot_password.html",
                 context={
@@ -123,8 +121,6 @@ class SecurityMiddleware(BaseHTTPMiddleware):
                 },
                 status_code=403,
             )
-            request.state.csrf_token = token
-            return response
 
         return Response(
             content=exc.detail or "CSRF validation failed.",
