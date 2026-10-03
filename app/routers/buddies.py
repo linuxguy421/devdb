@@ -281,7 +281,7 @@ async def buddy_activity_partial(
         has_more = (len(activity_items) == effective_limit) and (next_offset < MAX_TOTAL)
 
     except Exception as exc:
-        logger.error(f"Error in buddy_activity_partial: {exc}", exp_info=True)
+        logger.error(f"Error in buddy_activity_partial: {exc}", exc_info=True)
         activity_items = []
         next_offset = offset
         has_more = False
