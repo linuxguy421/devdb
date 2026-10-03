@@ -45,9 +45,9 @@
 
         <div class="flex items-center gap-2 pt-1 border-t border-neutral-800/60">
             <button type="button"
-                    hx-post="/watch-entries"
-                    hx-vals='{"tmdb_id": {{ item.rec.tmdb_id }}, "media_type": "{{ item.rec.media_type }}", "status_val": "want_to_watch"}'
-                    hx-swap="none"
+                    hx-post="/buddies/recommendations/{{ item.rec.id }}/accept"
+                    hx-target="#rec-{{ item.rec.id }}"
+                    hx-swap="outerHTML"
                     class="flex-1 text-[11px] font-bold bg-emerald-500 hover:bg-emerald-400 text-neutral-950 py-1.5 rounded-full transition cursor-pointer">
                 Want to Watch
             </button>
