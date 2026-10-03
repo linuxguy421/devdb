@@ -12,6 +12,7 @@ from app.database import get_db
 from app.security import require_csrf
 from app.models import Friendship, MediaItem, Recommendation, User, WatchEntry
 from app.routers.auth import get_current_user
+from app.services.media_sync import get_or_sync_media_item
 from app.services.tmdb import tmdb_service
 
 logger = logging.getLogger(__name__)
@@ -280,7 +281,7 @@ async def buddy_activity_partial(
         has_more = (len(activity_items) == effective_limit) and (next_offset < MAX_TOTAL)
 
     except Exception as exc:
-        logger.error(f"Error in buddy_activity_partial: {exc}", exc_info=True)
+        logger.error(f"Error in buddy_activity_partial: {exc}", exp_info=True)
         activity_items = []
         next_offset = offset
         has_more = False
@@ -345,7 +346,6 @@ async def get_mutual_watchlist(
     )
     results = (await db.execute(buddy_stmt)).all()
 
-    # Group buddy usernames by (tmdb_id, media_type)
     grouped_matches = {}
     for entry, buddy in results:
         if not entry.media_item:
@@ -429,7 +429,6 @@ async def send_recommendation(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    # Only allow sending to accepted buddies
     stmt_friend = select(Friendship).where(
         or_(
             and_(Friendship.user_id == current_user.id, Friendship.buddy_id == receiver_id),
@@ -450,7 +449,6 @@ async def send_recommendation(
             status_code=400,
         )
 
-    # Avoid duplicate open recommendations for the same title
     stmt_dup = select(Recommendation).where(
         Recommendation.sender_id == current_user.id,
         Recommendation.receiver_id == receiver_id,
@@ -517,6 +515,52 @@ async def list_recommendations(
         name="partials/recommendations.html",
         context={"items": items},
     )
+
+
+@router.post("/recommendations/{rec_id}/accept", response_class=HTMLResponse)
+async def accept_recommendation(
+    rec_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Add title to Want to Watch, store recommender, remove the recommendation card."""
+    stmt = select(Recommendation).where(
+        Recommendation.id == rec_id,
+        Recommendation.receiver_id == current_user.id,
+    )
+    rec = (await db.execute(stmt)).scalars().first()
+    if not rec:
+        return HTMLResponse("")
+
+    media_item = await get_or_sync_media_item(db, rec.tmdb_id, rec.media_type)
+    if not media_item:
+        return HTMLResponse(
+            '<div class="p-3 text-xs text-rose-400">Could not load that title. Try again later.</div>',
+            status_code=400,
+        )
+
+    stmt_entry = select(WatchEntry).where(
+        WatchEntry.user_id == current_user.id,
+        WatchEntry.media_item_id == media_item.id,
+    )
+    entry = (await db.execute(stmt_entry)).scalars().first()
+
+    if entry is None:
+        entry = WatchEntry(
+            user_id=current_user.id,
+            media_item_id=media_item.id,
+            status="want_to_watch",
+            recommended_by_id=rec.sender_id,
+        )
+        db.add(entry)
+    else:
+        if entry.recommended_by_id is None:
+            entry.recommended_by_id = rec.sender_id
+
+    await db.delete(rec)
+    await db.commit()
+
+    return HTMLResponse("")
 
 
 @router.delete("/recommendations/{rec_id}", response_class=HTMLResponse)
