@@ -76,7 +76,10 @@ async def my_media_page(
     # filters only offer values that can actually return something.
     all_entries_stmt = (
         select(WatchEntry)
-        .options(joinedload(WatchEntry.media_item))
+        .options(
+            joinedload(WatchEntry.media_item),
+            joinedload(WatchEntry.recommended_by),
+        )
         .where(WatchEntry.user_id == current_user.id)
     )
     all_entries_result = await db.execute(all_entries_stmt)
@@ -106,7 +109,10 @@ async def my_media_page(
 
     stmt = (
         select(WatchEntry)
-        .options(joinedload(WatchEntry.media_item))
+        .options(
+            joinedload(WatchEntry.media_item),
+            joinedload(WatchEntry.recommended_by),
+        )
         .where(WatchEntry.user_id == current_user.id)
     )
 
