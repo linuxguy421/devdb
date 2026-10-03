@@ -77,6 +77,11 @@
                     <span class="text-neutral-600">My rating —</span>
                 {% endif %}
             </div>
+            {% if entry.recommended_by %}
+            <p class="mt-1.5 text-[11px] font-semibold text-emerald-400/90">
+                Recommended by {{ entry.recommended_by.username }}
+            </p>
+            {% endif %}
         </div>
 
         <div class="min-h-[2.75rem]">
