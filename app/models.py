@@ -71,6 +71,7 @@ class User(Base):
         "WatchEntry",
         back_populates="user",
         cascade="all, delete-orphan",
+        foreign_keys="WatchEntry.user_id",
     )
 
     recovery_codes = relationship(
@@ -256,6 +257,14 @@ class WatchEntry(Base):
         server_default="false",
     )
 
+    # Buddy who recommended this title (set when accepting a recommendation)
+    recommended_by_id = Column(
+        Integer,
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+
     created_at = Column(
         DateTime(timezone=True),
         server_default=func.now(),
@@ -270,6 +279,12 @@ class WatchEntry(Base):
     user = relationship(
         "User",
         back_populates="watch_entries",
+        foreign_keys=[user_id],
+    )
+
+    recommended_by = relationship(
+        "User",
+        foreign_keys=[recommended_by_id],
     )
 
     media_item = relationship(
