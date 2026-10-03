@@ -81,7 +81,10 @@ async def get_entry(
 ) -> Optional[WatchEntry]:
     stmt = (
         select(WatchEntry)
-        .options(joinedload(WatchEntry.media_item))
+        .options(
+            joinedload(WatchEntry.media_item),
+            joinedload(WatchEntry.recommended_by),
+        )
         .where(
             WatchEntry.id == entry_id,
             WatchEntry.user_id == user_id,
@@ -190,9 +193,6 @@ async def render_info_modal(
                 )
                 tv_seasons = await get_tv_seasons(db, entry.media_item.id)
         except Exception:
-            # The persisted season data remains authoritative for validation.
-            # If it cannot be read here, leave the detail display empty rather
-            # than making the modal itself fail.
             season_episode_counts = {}
 
     return templates.get_template(
@@ -219,12 +219,6 @@ async def get_edit_modal(
     db: AsyncSession = Depends(get_db),
     current_user: Optional[User] = Depends(get_current_user),
 ):
-    """
-    Compatibility route for browse/search controls.
-
-    The application now uses the same editable info modal everywhere;
-    this route remains so older HTMX controls do not break.
-    """
     if not current_user:
         return HTMLResponse(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -276,7 +270,10 @@ async def create_watch_entry(
 
     stmt = (
         select(WatchEntry)
-        .options(joinedload(WatchEntry.media_item))
+        .options(
+            joinedload(WatchEntry.media_item),
+            joinedload(WatchEntry.recommended_by),
+        )
         .where(
             WatchEntry.user_id == current_user.id,
             WatchEntry.media_item_id == media_item.id,
@@ -363,6 +360,7 @@ async def create_watch_entry(
         )
 
     await db.refresh(entry)
+    entry = await get_entry(db, entry.id, current_user.id)
 
     if from_modal:
         modal_html = await render_info_modal(
@@ -490,8 +488,6 @@ async def update_watch_entry(
                         ),
                     )
 
-                # This is the authoritative server-side boundary. A user can
-                # never save S1E10 when persisted season data says S1 has 9.
                 if episode_num > max_episode:
                     raise HTTPException(
                         status_code=400,
@@ -521,9 +517,6 @@ async def update_watch_entry(
         if exc.status_code != 400:
             raise
 
-        # Do not leave a partially edited ORM object in the session after a
-        # rejected save. Re-render the same edit surface with a useful error
-        # instead of returning a bare 400 page.
         await db.rollback()
         entry = await get_entry(db, entry_id, current_user.id)
         if not entry:
@@ -539,199 +532,10 @@ async def update_watch_entry(
             )
         )
 
-    # Successful edit: the form targets #info-modal with hx-swap="outerHTML".
-    # We intentionally return only OOB card/toast updates, so the modal target
-    # disappears and Edit closes automatically.
+    entry = await get_entry(db, entry_id, current_user.id)
     return HTMLResponse(
         content=(
             render_card_oob(entry)
             + render_toast("Saved changes.")
-        )
-    )
-
-
-@router.post("/{entry_id}/start", response_class=HTMLResponse)
-async def action_start_watching(
-    request: Request,
-    entry_id: int,
-    db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user),
-):
-    if not current_user:
-        return HTMLResponse(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            headers={"HX-Redirect": "/login"},
-        )
-
-    entry = await get_entry(db, entry_id, current_user.id)
-    if not entry:
-        raise HTTPException(status_code=404, detail="Watch entry not found")
-
-    start_watching(entry)
-
-    await db.commit()
-    await db.refresh(entry)
-
-    return render_entry_response(
-        request,
-        entry,
-        "Moved to In Progress",
-    )
-
-
-@router.post("/{entry_id}/progress", response_class=HTMLResponse)
-async def action_increment_progress(
-    request: Request,
-    entry_id: int,
-    db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user),
-):
-    if not current_user:
-        return HTMLResponse(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            headers={"HX-Redirect": "/login"},
-        )
-
-    entry = await get_entry(db, entry_id, current_user.id)
-    if not entry:
-        raise HTTPException(status_code=404, detail="Watch entry not found")
-
-    if not entry.media_item:
-        raise HTTPException(status_code=400, detail="Watch entry has no media item")
-
-    if entry.media_item.media_type != "tv":
-        raise HTTPException(
-            status_code=400,
-            detail="Episode progress is only available for TV shows",
-        )
-
-    season_episode_counts = await get_season_episode_counts(
-        db,
-        entry.media_item,
-    )
-
-    if not season_episode_counts:
-        return HTMLResponse(
-            content=render_toast(
-                "Unable to load season information for this show.",
-                badge_type="remove",
-            ),
-            status_code=502,
-        )
-
-    try:
-        mark_next_episode_watched(
-            entry,
-            entry.media_item,
-            season_episode_counts,
-        )
-
-        await db.commit()
-        await db.refresh(entry)
-
-    except ProgressDomainError as err:
-        await db.rollback()
-        return HTMLResponse(
-            content=render_toast(
-                str(err),
-                badge_type="remove",
-            ),
-            status_code=400,
-        )
-
-    if entry.status == "watched":
-        message = "Completed series!"
-    else:
-        message = (
-            f"Updated to "
-            f"S{entry.last_watched_season:02d}"
-            f"E{entry.last_watched_episode:02d}"
-        )
-
-    return render_entry_response(request, entry, message)
-
-
-@router.post("/{entry_id}/complete", response_class=HTMLResponse)
-async def action_complete_media(
-    request: Request,
-    entry_id: int,
-    db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user),
-):
-    if not current_user:
-        return HTMLResponse(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            headers={"HX-Redirect": "/login"},
-        )
-
-    entry = await get_entry(db, entry_id, current_user.id)
-    if not entry:
-        raise HTTPException(status_code=404, detail="Watch entry not found")
-
-    complete(entry)
-
-    await db.commit()
-    await db.refresh(entry)
-
-    return render_entry_response(
-        request,
-        entry,
-        "Marked as Watched!",
-    )
-
-
-@router.post("/{entry_id}/reset", response_class=HTMLResponse)
-async def action_reset_media(
-    request: Request,
-    entry_id: int,
-    db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user),
-):
-    if not current_user:
-        return HTMLResponse(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            headers={"HX-Redirect": "/login"},
-        )
-
-    entry = await get_entry(db, entry_id, current_user.id)
-    if not entry:
-        raise HTTPException(status_code=404, detail="Watch entry not found")
-
-    reset_progress(entry)
-
-    await db.commit()
-    await db.refresh(entry)
-
-    return render_entry_response(
-        request,
-        entry,
-        "Reset back to Want to Watch",
-    )
-
-
-@router.delete("/{entry_id}", response_class=HTMLResponse)
-async def delete_watch_entry(
-    request: Request,
-    entry_id: int,
-    db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user),
-):
-    if not current_user:
-        return HTMLResponse(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            headers={"HX-Redirect": "/login"},
-        )
-
-    entry = await get_entry(db, entry_id, current_user.id)
-    if not entry:
-        raise HTTPException(status_code=404, detail="Watch entry not found")
-
-    await db.delete(entry)
-    await db.commit()
-
-    return HTMLResponse(
-        content=(
-            f'<div id="entry-card-{entry_id}" hx-swap-oob="delete"></div>'
-            + render_toast("Removed entry", badge_type="remove")
         )
     )
