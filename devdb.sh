@@ -93,12 +93,49 @@ compose() {
   fi
 }
 
+print_tmdb_instructions() {
+  cat <<EOF
+
+${CYAN}--------------------------------------------------------------------${NC}
+${GREEN}TMDB API key (required for search, posters, and title details)${NC}
+${CYAN}--------------------------------------------------------------------${NC}
+
+DevDB uses The Movie Database (TMDB). Free API access:
+
+  1. Create an account (or sign in):
+       ${YELLOW}https://www.themoviedb.org/signup${NC}
+
+  2. Request an API key:
+       ${YELLOW}https://www.themoviedb.org/settings/api${NC}
+       - Choose "Developer" / personal use when asked
+       - Accept the terms and submit the short application form
+       - Approval is usually instant for personal projects
+
+  3. Copy these values into your project's ${YELLOW}.env${NC} file:
+
+       TMDB_API_KEY=<your v3 API key>
+       TMDB_READ_ACCESS_TOKEN=<your Read Access Token (v4 auth), if shown>
+
+     Also set a strong password and secret before first run:
+
+       POSTGRES_PASSWORD=<choose a strong password>
+       SECRET_KEY=<long random string>
+
+  4. Start the app:
+
+       ./devdb.sh --up
+
+Docs: ${YELLOW}https://developer.themoviedb.org/docs${NC}
+
+EOF
+}
+
 ensure_env_file() {
   if [[ ! -f .env ]]; then
     if [[ -f .env.example ]]; then
       warn ".env missing — copying from .env.example"
       cp .env.example .env
-      warn "Edit .env (at least POSTGRES_PASSWORD, SECRET_KEY, TMDB keys) before production use."
+      warn "Edit .env before first run (POSTGRES_PASSWORD, SECRET_KEY, TMDB keys)."
     else
       die ".env and .env.example are both missing."
     fi
@@ -241,52 +278,52 @@ cmd_install() {
     ok "Docker and Compose are already installed."
     docker --version || true
     docker compose version 2>/dev/null || docker-compose --version || true
-    return 0
-  fi
-
-  case "$DISTRO_ID" in
-    ubuntu|debian|linuxmint|pop|elementary|zorin|raspbian)
-      install_docker_debian
-      ;;
-    fedora|centos|rhel|rocky|almalinux|ol|amzn)
-      install_docker_rhel
-      ;;
-    opensuse*|sles)
-      install_docker_suse
-      ;;
-    arch|manjaro|endeavouros|garuda)
-      install_docker_arch
-      ;;
-    *)
-      if [[ "$DISTRO_LIKE" == *debian* || "$DISTRO_LIKE" == *ubuntu* ]]; then
-        install_docker_debian
-      elif [[ "$DISTRO_LIKE" == *rhel* || "$DISTRO_LIKE" == *fedora* || "$DISTRO_LIKE" == *centos* ]]; then
-        install_docker_rhel
-      elif [[ "$DISTRO_LIKE" == *suse* ]]; then
-        install_docker_suse
-      elif [[ "$DISTRO_LIKE" == *arch* ]]; then
-        install_docker_arch
-      else
-        install_docker_generic
-      fi
-      ;;
-  esac
-
-  enable_docker
-
-  if have_docker && have_compose; then
-    ok "Docker + Compose installed successfully."
-    docker --version
-    docker compose version 2>/dev/null || docker-compose --version
-  elif have_docker; then
-    warn "Docker is installed but Compose plugin was not detected."
-    warn "Try: sudo apt/dnf/pacman install docker-compose-plugin  (package name varies by distro)"
   else
-    die "Installation finished but 'docker' is not on PATH. Check the installer output above."
+    case "$DISTRO_ID" in
+      ubuntu|debian|linuxmint|pop|elementary|zorin|raspbian)
+        install_docker_debian
+        ;;
+      fedora|centos|rhel|rocky|almalinux|ol|amzn)
+        install_docker_rhel
+        ;;
+      opensuse*|sles)
+        install_docker_suse
+        ;;
+      arch|manjaro|endeavouros|garuda)
+        install_docker_arch
+        ;;
+      *)
+        if [[ "$DISTRO_LIKE" == *debian* || "$DISTRO_LIKE" == *ubuntu* ]]; then
+          install_docker_debian
+        elif [[ "$DISTRO_LIKE" == *rhel* || "$DISTRO_LIKE" == *fedora* || "$DISTRO_LIKE" == *centos* ]]; then
+          install_docker_rhel
+        elif [[ "$DISTRO_LIKE" == *suse* ]]; then
+          install_docker_suse
+        elif [[ "$DISTRO_LIKE" == *arch* ]]; then
+          install_docker_arch
+        else
+          install_docker_generic
+        fi
+        ;;
+    esac
+
+    enable_docker
+
+    if have_docker && have_compose; then
+      ok "Docker + Compose installed successfully."
+      docker --version
+      docker compose version 2>/dev/null || docker-compose --version
+    elif have_docker; then
+      warn "Docker is installed but Compose plugin was not detected."
+      warn "Try: sudo apt/dnf/pacman install docker-compose-plugin  (package name varies by distro)"
+    else
+      die "Installation finished but 'docker' is not on PATH. Check the installer output above."
+    fi
   fi
 
   ensure_env_file
-  ok "Next: edit .env if needed, then run: $0 --up"
+  print_tmdb_instructions
+  ok "After adding your TMDB key to .env, start the app with: $0 --up"
 }
 
 cmd_update() {
@@ -417,7 +454,8 @@ DevDB helper script
 Usage: $0 [flag]
 
   --install     Install Docker Engine + Compose (Debian/Ubuntu, RHEL/Fedora/Rocky,
-                openSUSE, Arch, and derivatives). Creates .env from .env.example if needed.
+                openSUSE, Arch, and derivatives). Creates .env from .env.example if needed
+                and prints TMDB API key setup instructions.
   --update      git pull current branch and rebuild/restart the stack
   --uninstall   Stop stack, remove DevDB volumes/images; optional Docker + directory removal
   --up          Build and start (docker compose up -d --build)
@@ -429,7 +467,7 @@ Usage: $0 [flag]
 Examples:
   chmod +x devdb.sh
   ./devdb.sh --install
-  # edit .env
+  # get a TMDB key, put it in .env
   ./devdb.sh --up
   ./devdb.sh --update
   ./devdb.sh --uninstall
