@@ -1,0 +1,75 @@
+{% if items %}
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+    {% for item in items %}
+    <div id="rec-{{ item.rec.id }}"
+         class="p-4 bg-neutral-900 border border-neutral-800 hover:border-emerald-700/50 hover:bg-neutral-800/80 rounded-xl flex flex-col gap-3 transition">
+
+        <div class="flex items-start gap-3">
+            {% if item.sender.avatar_url %}
+            <img src="{{ item.sender.avatar_url }}" alt="{{ item.sender.username }}"
+                 class="w-8 h-8 rounded-full object-cover border border-neutral-700 shrink-0">
+            {% else %}
+            <div class="w-8 h-8 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold text-xs uppercase shrink-0">
+                {{ item.sender.username[0] }}
+            </div>
+            {% endif %}
+            <div class="min-w-0 flex-1">
+                <p class="text-xs font-bold text-white truncate">{{ item.sender.username }}</p>
+                <p class="text-[11px] text-neutral-400">recommended this to you</p>
+            </div>
+            {% if item.tmdb_data.poster_path %}
+            <img src="https://image.tmdb.org/t/p/w92{{ item.tmdb_data.poster_path }}"
+                 alt="{{ item.tmdb_data.title }}"
+                 class="w-10 h-14 object-cover rounded-md border border-neutral-800 shrink-0 cursor-pointer"
+                 hx-get="/titles/info-modal/{{ item.rec.tmdb_id }}/{{ item.rec.media_type }}"
+                 hx-target="#modal-container"
+                 hx-swap="innerHTML">
+            {% endif %}
+        </div>
+
+        <div class="cursor-pointer"
+             hx-get="/titles/info-modal/{{ item.rec.tmdb_id }}/{{ item.rec.media_type }}"
+             hx-target="#modal-container"
+             hx-swap="innerHTML">
+            <h3 class="text-sm font-semibold text-white hover:text-emerald-400 transition truncate">
+                {{ item.tmdb_data.title or ("Media #" ~ item.rec.tmdb_id) }}
+            </h3>
+            <span class="text-[10px] uppercase font-bold tracking-wider text-neutral-500">{{ item.rec.media_type }}</span>
+        </div>
+
+        {% if item.rec.note %}
+        <p class="text-[11px] text-neutral-300 italic bg-neutral-950/60 p-2 rounded-lg border border-neutral-800/80 leading-relaxed break-words">
+            "{{ item.rec.note }}"
+        </p>
+        {% endif %}
+
+        <div class="flex items-center gap-2 pt-1 border-t border-neutral-800/60">
+            <button type="button"
+                    hx-post="/buddies/recommendations/{{ item.rec.id }}/accept"
+                    hx-target="#rec-{{ item.rec.id }}"
+                    hx-swap="outerHTML"
+                    class="flex-1 text-[11px] font-bold bg-emerald-500 hover:bg-emerald-400 text-neutral-950 py-1.5 rounded-full transition cursor-pointer">
+                Want to Watch
+            </button>
+            <button type="button"
+                    hx-delete="/buddies/recommendations/{{ item.rec.id }}"
+                    hx-target="#rec-{{ item.rec.id }}"
+                    hx-swap="outerHTML"
+                    class="text-[11px] font-semibold text-neutral-400 hover:text-white bg-neutral-800 hover:bg-neutral-700 px-3 py-1.5 rounded-full transition cursor-pointer">
+                Dismiss
+            </button>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="p-6 text-center bg-neutral-900/40 border border-neutral-800/80 rounded-2xl flex flex-col items-center justify-center space-y-2">
+    <div class="p-2.5 bg-neutral-800/60 rounded-full text-neutral-400">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"/>
+        </svg>
+    </div>
+    <p class="text-sm font-semibold text-neutral-200">No recommendations yet</p>
+    <p class="text-xs text-neutral-400 max-w-md">When a buddy recommends a title to you, it will show up here.</p>
+</div>
+{% endif %}

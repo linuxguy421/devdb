@@ -12,11 +12,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.database import get_db
-from app.security import require_csrf
 from app.models import User
 from app.services.recovery_codes import verify_and_consume_code
 
-router = APIRouter(tags=["Auth"], dependencies=[Depends(require_csrf)])
+# CSRF for /login, /register, /logout, /forgot-password is enforced in
+# SecurityMiddleware (with HTML error pages for form posts). Do not also
+# attach Depends(require_csrf) here — a second form read produced JSON 403s.
+router = APIRouter(tags=["Auth"])
 templates = Jinja2Templates(directory="app/templates")
 
 BCRYPT_MAX_BYTES = 72

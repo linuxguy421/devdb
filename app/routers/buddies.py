@@ -12,6 +12,7 @@ from app.database import get_db
 from app.security import require_csrf
 from app.models import Friendship, MediaItem, Recommendation, User, WatchEntry
 from app.routers.auth import get_current_user
+from app.services.media_sync import get_or_sync_media_item
 from app.services.tmdb import tmdb_service
 
 logger = logging.getLogger(__name__)
@@ -345,7 +346,6 @@ async def get_mutual_watchlist(
     )
     results = (await db.execute(buddy_stmt)).all()
 
-    # Group buddy usernames by (tmdb_id, media_type)
     grouped_matches = {}
     for entry, buddy in results:
         if not entry.media_item:
@@ -429,14 +429,153 @@ async def send_recommendation(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    stmt_friend = select(Friendship).where(
+        or_(
+            and_(Friendship.user_id == current_user.id, Friendship.buddy_id == receiver_id),
+            and_(Friendship.buddy_id == current_user.id, Friendship.user_id == receiver_id),
+        ),
+        Friendship.status == "accepted",
+    )
+    friendship = (await db.execute(stmt_friend)).scalars().first()
+    if not friendship:
+        return HTMLResponse(
+            '<div class="p-4 text-sm text-rose-400">You can only recommend titles to accepted buddies.</div>',
+            status_code=403,
+        )
+
+    if receiver_id == current_user.id:
+        return HTMLResponse(
+            '<div class="p-4 text-sm text-rose-400">You cannot recommend a title to yourself.</div>',
+            status_code=400,
+        )
+
+    stmt_dup = select(Recommendation).where(
+        Recommendation.sender_id == current_user.id,
+        Recommendation.receiver_id == receiver_id,
+        Recommendation.tmdb_id == tmdb_id,
+        Recommendation.media_type == media_type,
+    )
+    existing = (await db.execute(stmt_dup)).scalars().first()
+    if existing:
+        if note is not None:
+            existing.note = note.strip() or None
+            await db.commit()
+        return HTMLResponse('<div id="modal-container" hx-swap-oob="true"></div>')
+
     rec = Recommendation(
         sender_id=current_user.id,
         receiver_id=receiver_id,
         tmdb_id=tmdb_id,
         media_type=media_type,
-        note=note
+        note=(note.strip() if note else None) or None,
     )
     db.add(rec)
     await db.commit()
 
     return HTMLResponse('<div id="modal-container" hx-swap-oob="true"></div>')
+
+
+@router.get("/recommendations", response_class=HTMLResponse)
+async def list_recommendations(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    stmt = (
+        select(Recommendation)
+        .options(selectinload(Recommendation.sender))
+        .where(Recommendation.receiver_id == current_user.id)
+        .order_by(Recommendation.created_at.desc())
+        .limit(30)
+    )
+    recs = (await db.execute(stmt)).scalars().all()
+
+    items = []
+    for rec in recs:
+        try:
+            tmdb_data = await asyncio.wait_for(
+                tmdb_service.get_formatted_details(rec.tmdb_id, rec.media_type),
+                timeout=2.0,
+            )
+        except Exception:
+            tmdb_data = {
+                "title": f"Media #{rec.tmdb_id}",
+                "poster_path": None,
+                "media_type": rec.media_type,
+            }
+
+        items.append({
+            "rec": rec,
+            "tmdb_data": tmdb_data,
+            "sender": rec.sender,
+        })
+
+    return templates.TemplateResponse(
+        request=request,
+        name="partials/recommendations.html",
+        context={"items": items},
+    )
+
+
+@router.post("/recommendations/{rec_id}/accept", response_class=HTMLResponse)
+async def accept_recommendation(
+    rec_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Add title to Want to Watch, store recommender, remove the recommendation card."""
+    stmt = select(Recommendation).where(
+        Recommendation.id == rec_id,
+        Recommendation.receiver_id == current_user.id,
+    )
+    rec = (await db.execute(stmt)).scalars().first()
+    if not rec:
+        return HTMLResponse("")
+
+    media_item = await get_or_sync_media_item(db, rec.tmdb_id, rec.media_type)
+    if not media_item:
+        return HTMLResponse(
+            '<div class="p-3 text-xs text-rose-400">Could not load that title. Try again later.</div>',
+            status_code=400,
+        )
+
+    stmt_entry = select(WatchEntry).where(
+        WatchEntry.user_id == current_user.id,
+        WatchEntry.media_item_id == media_item.id,
+    )
+    entry = (await db.execute(stmt_entry)).scalars().first()
+
+    if entry is None:
+        entry = WatchEntry(
+            user_id=current_user.id,
+            media_item_id=media_item.id,
+            status="want_to_watch",
+            recommended_by_id=rec.sender_id,
+        )
+        db.add(entry)
+    else:
+        if entry.recommended_by_id is None:
+            entry.recommended_by_id = rec.sender_id
+
+    await db.delete(rec)
+    await db.commit()
+
+    return HTMLResponse("")
+
+
+@router.delete("/recommendations/{rec_id}", response_class=HTMLResponse)
+async def dismiss_recommendation(
+    rec_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    stmt = select(Recommendation).where(
+        Recommendation.id == rec_id,
+        Recommendation.receiver_id == current_user.id,
+    )
+    rec = (await db.execute(stmt)).scalars().first()
+    if rec:
+        await db.delete(rec)
+        await db.commit()
+
+    return HTMLResponse("")

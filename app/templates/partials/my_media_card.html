@@ -32,12 +32,13 @@
                 hx-swap="outerHTML"
                 hx-confirm="Remove this title from your list?"
                 onclick="event.stopPropagation();"
-                class="pointer-events-auto p-1.5 rounded-lg bg-neutral-950/85 text-neutral-400 hover:text-rose-400 hover:bg-rose-500/10 border border-neutral-800 transition-colors opacity-0 group-hover:opacity-100 cursor-pointer"
-                title="Remove"
+                class="pointer-events-auto p-2 rounded-lg bg-neutral-950/90 text-neutral-300 hover:text-rose-400 hover:bg-rose-500/15 border border-neutral-700/80 shadow-sm transition-colors cursor-pointer"
+                title="Remove from My Media"
                 type="button"
+                aria-label="Remove from My Media"
             >
-                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
                 </svg>
             </button>
         </div>
@@ -77,6 +78,11 @@
                     <span class="text-neutral-600">My rating —</span>
                 {% endif %}
             </div>
+            {% if entry.recommended_by %}
+            <p class="mt-1.5 text-[11px] font-semibold text-emerald-400/90">
+                Recommended by {{ entry.recommended_by.username }}
+            </p>
+            {% endif %}
         </div>
 
         <div class="min-h-[2.75rem]">
