@@ -1,0 +1,251 @@
+{% extends "base.html" %}
+
+{% block title %}Stats · DevDB{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+        <div>
+            <h1 class="text-3xl font-bold tracking-tight text-white">Stats</h1>
+            <p class="text-sm text-neutral-400 mt-1">See what you’ve watched, how your taste is changing, and where your library is growing.</p>
+        </div>
+        <form method="get" action="/stats" class="flex flex-wrap items-center gap-2">
+            <select name="range"
+                    class="rounded-lg border border-neutral-800 bg-neutral-900 px-3 py-1.5 text-xs font-medium text-neutral-200 focus:border-emerald-500/50 focus:outline-none">
+                <option value="all" {% if selected_range == 'all' %}selected{% endif %}>All Time</option>
+                <option value="year" {% if selected_range == 'year' %}selected{% endif %}>This Year</option>
+                <option value="month" {% if selected_range == 'month' %}selected{% endif %}>This Month</option>
+            </select>
+            <select name="media_type"
+                    class="rounded-lg border border-neutral-800 bg-neutral-900 px-3 py-1.5 text-xs font-medium text-neutral-200 focus:border-emerald-500/50 focus:outline-none">
+                <option value="all" {% if selected_media == 'all' %}selected{% endif %}>Movies + TV</option>
+                <option value="movie" {% if selected_media == 'movie' %}selected{% endif %}>Movies</option>
+                <option value="tv" {% if selected_media == 'tv' %}selected{% endif %}>TV</option>
+            </select>
+            <button type="submit"
+                    class="rounded-lg bg-emerald-500 px-3.5 py-1.5 text-xs font-semibold text-neutral-950 hover:bg-emerald-400 transition-colors">
+                Apply
+            </button>
+        </form>
+    </div>
+
+    <!-- Summary cards -->
+    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3">
+        <div class="rounded-2xl border border-neutral-800 bg-neutral-900/70 px-4 py-4 text-center">
+            <div class="text-2xl font-bold text-white tabular-nums">{{ stats.total_tracked }}</div>
+            <div class="mt-1 text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Total Tracked</div>
+        </div>
+        <div class="rounded-2xl border border-neutral-800 bg-neutral-900/70 px-4 py-4 text-center">
+            <div class="text-2xl font-bold text-emerald-400 tabular-nums">{{ stats.watched_count }}</div>
+            <div class="mt-1 text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Watched</div>
+        </div>
+        <div class="rounded-2xl border border-neutral-800 bg-neutral-900/70 px-4 py-4 text-center">
+            <div class="text-2xl font-bold text-sky-400 tabular-nums">{{ stats.in_progress_count }}</div>
+            <div class="mt-1 text-[10px] font-semibold uppercase tracking-wider text-neutral-500">In Progress</div>
+        </div>
+        <div class="rounded-2xl border border-neutral-800 bg-neutral-900/70 px-4 py-4 text-center">
+            <div class="text-2xl font-bold text-amber-400 tabular-nums">{{ stats.want_count }}</div>
+            <div class="mt-1 text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Want to Watch</div>
+        </div>
+        <div class="rounded-2xl border border-neutral-800 bg-neutral-900/70 px-4 py-4 text-center">
+            <div class="text-2xl font-bold text-white tabular-nums">{{ stats.completion_rate }}%</div>
+            <div class="mt-1 text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Completion Rate</div>
+        </div>
+        <div class="rounded-2xl border border-neutral-800 bg-neutral-900/70 px-4 py-4 text-center">
+            <div class="text-2xl font-bold text-violet-400 tabular-nums">
+                {% if stats.avg_rating is not none %}{{ stats.avg_rating }}{% else %}—{% endif %}
+            </div>
+            <div class="mt-1 text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Avg. Rating</div>
+        </div>
+        <div class="rounded-2xl border border-neutral-800 bg-neutral-900/70 px-4 py-4 text-center col-span-2 sm:col-span-1">
+            <div class="text-2xl font-bold text-rose-400 tabular-nums">{{ stats.duration_label }}</div>
+            <div class="mt-1 text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Time Watched</div>
+        </div>
+    </div>
+
+    <!-- Charts row -->
+    <div class="grid grid-cols-1 lg:grid-cols-5 gap-4">
+        <!-- Completed over time -->
+        <div class="lg:col-span-3 rounded-2xl border border-neutral-800 bg-neutral-900/60 p-5">
+            <div class="flex items-start justify-between mb-4">
+                <div>
+                    <h2 class="text-xs font-semibold uppercase tracking-wider text-neutral-400">Completed Over Time</h2>
+                    <p class="text-[11px] text-neutral-500 mt-0.5">Titles completed by month this year.</p>
+                </div>
+                <span class="text-xs text-neutral-500">{{ stats.year_completed_total }} completed</span>
+            </div>
+            <div class="flex items-end gap-1.5 h-40 pt-2">
+                {% for count in stats.completed_by_month %}
+                    {% set height = (count / stats.max_month * 100) if stats.max_month else 0 %}
+                    <div class="flex-1 flex flex-col items-center justify-end h-full gap-1">
+                        {% if count > 0 %}
+                            <span class="text-[10px] font-medium text-neutral-400 tabular-nums">{{ count }}</span>
+                        {% endif %}
+                        <div class="w-full rounded-t-md bg-emerald-500/90 min-h-[2px] transition-all"
+                             style="height: {{ height }}%; {% if count == 0 %}opacity: 0.15;{% endif %}"></div>
+                    </div>
+                {% endfor %}
+            </div>
+            <div class="flex gap-1.5 mt-2">
+                {% for label in stats.month_labels %}
+                    <div class="flex-1 text-center text-[10px] text-neutral-600">{{ label }}</div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Movies vs TV -->
+        <div class="lg:col-span-2 rounded-2xl border border-neutral-800 bg-neutral-900/60 p-5">
+            <h2 class="text-xs font-semibold uppercase tracking-wider text-neutral-400">Movies vs. TV</h2>
+            <p class="text-[11px] text-neutral-500 mt-0.5 mb-5">Completed titles.</p>
+            <div class="space-y-4">
+                <div>
+                    <div class="flex justify-between text-sm mb-1.5">
+                        <span class="text-neutral-300">Movies</span>
+                        <span class="text-neutral-400 tabular-nums">{{ stats.movie_count }} · {{ stats.movie_pct }}%</span>
+                    </div>
+                    <div class="h-2 rounded-full bg-neutral-800 overflow-hidden">
+                        <div class="h-full rounded-full bg-emerald-500" style="width: {{ stats.movie_pct }}%"></div>
+                    </div>
+                </div>
+                <div>
+                    <div class="flex justify-between text-sm mb-1.5">
+                        <span class="text-neutral-300">TV Shows</span>
+                        <span class="text-neutral-400 tabular-nums">{{ stats.tv_count }} · {{ stats.tv_pct }}%</span>
+                    </div>
+                    <div class="h-2 rounded-full bg-neutral-800 overflow-hidden">
+                        <div class="h-full rounded-full bg-emerald-500" style="width: {{ stats.tv_pct }}%"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Genres row -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <!-- Top genres -->
+        <div class="rounded-2xl border border-neutral-800 bg-neutral-900/60 p-5">
+            <h2 class="text-xs font-semibold uppercase tracking-wider text-neutral-400">Top Genres</h2>
+            <p class="text-[11px] text-neutral-500 mt-0.5 mb-4">Based on completed titles.</p>
+            {% if stats.top_genres %}
+                <div class="space-y-2.5">
+                    {% for genre, count, pct in stats.top_genres %}
+                        <div>
+                            <div class="flex justify-between text-sm mb-1">
+                                <span class="text-neutral-300">{{ genre }}</span>
+                                <span class="text-neutral-500 text-xs tabular-nums">{{ count }} · {{ pct }}%</span>
+                            </div>
+                            <div class="h-1.5 rounded-full bg-neutral-800 overflow-hidden">
+                                <div class="h-full rounded-full bg-emerald-500" style="width: {{ pct }}%"></div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <p class="text-sm text-neutral-500 py-6 text-center">No completed titles yet.</p>
+            {% endif %}
+        </div>
+
+        <!-- Highest-rated genres -->
+        <div class="rounded-2xl border border-neutral-800 bg-neutral-900/60 p-5">
+            <h2 class="text-xs font-semibold uppercase tracking-wider text-neutral-400">Highest-Rated Genres</h2>
+            <p class="text-[11px] text-neutral-500 mt-0.5 mb-4">Only titles with personal ratings are included.</p>
+            {% if stats.highest_rated_genres %}
+                <div class="space-y-2">
+                    {% for genre, avg, n in stats.highest_rated_genres %}
+                        <div class="flex items-center justify-between rounded-xl border border-neutral-800/80 bg-neutral-950/50 px-3.5 py-2.5">
+                            <span class="text-sm text-neutral-200">{{ genre }}</span>
+                            <span class="text-sm font-semibold text-violet-400 tabular-nums">{{ avg }}/10 <span class="text-neutral-600 font-normal">({{ n }})</span></span>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <p class="text-sm text-neutral-500 py-6 text-center">Rate some titles to see genre averages.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Release-year distribution -->
+    <div class="rounded-2xl border border-neutral-800 bg-neutral-900/60 p-5">
+        <h2 class="text-xs font-semibold uppercase tracking-wider text-neutral-400">Release-Year Distribution</h2>
+        <p class="text-[11px] text-neutral-500 mt-0.5 mb-6">Release decades for completed titles.</p>
+        {% if stats.decades %}
+            <div class="flex items-end gap-3 h-32 justify-center">
+                {% for decade, count in stats.decades %}
+                    {% set height = (count / stats.max_decade * 100) if stats.max_decade else 0 %}
+                    <div class="flex flex-col items-center gap-1.5 w-16">
+                        <span class="text-xs font-medium text-neutral-400 tabular-nums">{{ count }}</span>
+                        <div class="w-full rounded-t-md bg-emerald-500/80" style="height: {{ height }}%; min-height: 4px;"></div>
+                        <span class="text-[11px] text-neutral-500">{{ decade }}s</span>
+                    </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <p class="text-sm text-neutral-500 py-8 text-center">No completed titles with release years yet.</p>
+        {% endif %}
+    </div>
+
+    <!-- Bottom row: TV progress + Milestones -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div class="rounded-2xl border border-neutral-800 bg-neutral-900/60 p-5">
+            <h2 class="text-xs font-semibold uppercase tracking-wider text-neutral-400">TV Progress</h2>
+            <p class="text-[11px] text-neutral-500 mt-0.5 mb-4">Shows tracked in your current media-type view.</p>
+            <div class="grid grid-cols-3 gap-3">
+                <div class="rounded-xl border border-neutral-800 bg-neutral-950/60 px-3 py-4 text-center">
+                    <div class="text-xl font-bold text-white tabular-nums">{{ stats.tv_tracked }}</div>
+                    <div class="mt-1 text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Tracked</div>
+                </div>
+                <div class="rounded-xl border border-neutral-800 bg-neutral-950/60 px-3 py-4 text-center">
+                    <div class="text-xl font-bold text-emerald-400 tabular-nums">{{ stats.tv_completed }}</div>
+                    <div class="mt-1 text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Completed</div>
+                </div>
+                <div class="rounded-xl border border-neutral-800 bg-neutral-950/60 px-3 py-4 text-center">
+                    <div class="text-xl font-bold text-sky-400 tabular-nums">{{ stats.tv_in_progress }}</div>
+                    <div class="mt-1 text-[10px] font-semibold uppercase tracking-wider text-neutral-500">In Progress</div>
+                </div>
+            </div>
+            <p class="mt-3 text-[11px] text-neutral-600 leading-relaxed">
+                Episode totals are intentionally omitted because the current TV cursor records progress state, not episode watch history.
+            </p>
+        </div>
+
+        <div class="rounded-2xl border border-neutral-800 bg-neutral-900/60 p-5">
+            <h2 class="text-xs font-semibold uppercase tracking-wider text-neutral-400 mb-4">Milestones</h2>
+            <div class="space-y-2">
+                <div class="flex items-center justify-between rounded-xl border border-neutral-800/80 bg-neutral-950/50 px-3.5 py-2.5 gap-3">
+                    <span class="text-[11px] font-semibold uppercase tracking-wider text-neutral-500 shrink-0">First Completed</span>
+                    <span class="text-sm text-neutral-200 text-right truncate">
+                        {% if stats.first_completed and stats.first_completed.media_item %}
+                            {{ stats.first_completed.media_item.title }}
+                        {% else %}—{% endif %}
+                    </span>
+                </div>
+                <div class="flex items-center justify-between rounded-xl border border-neutral-800/80 bg-neutral-950/50 px-3.5 py-2.5 gap-3">
+                    <span class="text-[11px] font-semibold uppercase tracking-wider text-neutral-500 shrink-0">Latest Completed</span>
+                    <span class="text-sm text-neutral-200 text-right truncate">
+                        {% if stats.latest_completed and stats.latest_completed.media_item %}
+                            {{ stats.latest_completed.media_item.title }}
+                        {% else %}—{% endif %}
+                    </span>
+                </div>
+                <div class="flex items-center justify-between rounded-xl border border-neutral-800/80 bg-neutral-950/50 px-3.5 py-2.5 gap-3">
+                    <span class="text-[11px] font-semibold uppercase tracking-wider text-neutral-500 shrink-0">Highest Rated</span>
+                    <span class="text-sm text-neutral-200 text-right truncate">
+                        {% if stats.highest_rated_entry and stats.highest_rated_entry.media_item %}
+                            {{ stats.highest_rated_entry.media_item.title }} · {{ stats.highest_rated_entry.rating }}/10
+                        {% else %}—{% endif %}
+                    </span>
+                </div>
+                <div class="flex items-center justify-between rounded-xl border border-neutral-800/80 bg-neutral-950/50 px-3.5 py-2.5 gap-3">
+                    <span class="text-[11px] font-semibold uppercase tracking-wider text-neutral-500 shrink-0">Most Recent Addition</span>
+                    <span class="text-sm text-neutral-200 text-right truncate">
+                        {% if stats.most_recent_addition and stats.most_recent_addition.media_item %}
+                            {{ stats.most_recent_addition.media_item.title }}
+                        {% else %}—{% endif %}
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
