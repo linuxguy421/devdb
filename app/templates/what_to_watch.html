@@ -103,7 +103,9 @@
                         <input type="hidden" name="exclude" value="{{ pick.entry.id }}">
                         <button type="submit" class="rounded-full border border-neutral-700 bg-neutral-950 px-4 py-2 text-sm font-semibold text-neutral-200 hover:bg-neutral-800 transition">Another Pick</button>
                     </form>
-                    <form method="post" action="/watch-entries/{{ pick.entry.id }}/start">
+                    <form hx-post="/watch-entries/{{ pick.entry.id }}/start"
+                          hx-swap="none"
+                          hx-on::after-request="window.location.reload()">
                         <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
                         <button type="submit" class="rounded-full border border-neutral-700 bg-neutral-950 px-4 py-2 text-sm font-semibold text-neutral-200 hover:bg-neutral-800 transition">Start Watching</button>
                     </form>
