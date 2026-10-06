@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+
+{% block title %}What Should I Watch? · DevDB{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto space-y-6">
+    <div>
+        <h1 class="text-3xl font-bold tracking-tight text-white">What Should I Watch?</h1>
+        <p class="text-sm text-neutral-400 mt-1">Let DevDB pick something from your Want to Watch list based on your taste.</p>
+    </div>
+
+    <form method="get" action="/what-to-watch" class="rounded-2xl border border-neutral-800 bg-neutral-900/60 p-4">
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <label class="space-y-1.5">
+                <span class="text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Type</span>
+                <select name="media_type" class="w-full rounded-lg border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-200">
+                    <option value="all" {% if filters.media_type == 'all' %}selected{% endif %}>Anything</option>
+                    <option value="movie" {% if filters.media_type == 'movie' %}selected{% endif %}>Movie</option>
+                    <option value="tv" {% if filters.media_type == 'tv' %}selected{% endif %}>TV</option>
+                </select>
+            </label>
+
+            <label class="space-y-1.5">
+                <span class="text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Length</span>
+                <select name="length" class="w-full rounded-lg border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-200">
+                    <option value="any" {% if filters.length == 'any' %}selected{% endif %}>Any length</option>
+                    <option value="short" {% if filters.length == 'short' %}selected{% endif %}>Short</option>
+                    <option value="normal" {% if filters.length == 'normal' %}selected{% endif %}>Normal</option>
+                    <option value="long" {% if filters.length == 'long' %}selected{% endif %}>Long</option>
+                </select>
+            </label>
+
+            <label class="space-y-1.5">
+                <span class="text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Mood</span>
+                <select name="mood" class="w-full rounded-lg border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-200">
+                    <option value="comfort" {% if filters.mood == 'comfort' %}selected{% endif %}>Comfort · familiar taste</option>
+                    <option value="new" {% if filters.mood == 'new' %}selected{% endif %}>Something New</option>
+                </select>
+            </label>
+        </div>
+
+        <div class="flex flex-wrap gap-2 mt-4">
+            <button type="submit" class="rounded-full bg-emerald-500 px-5 py-2 text-sm font-semibold text-neutral-950 hover:bg-emerald-400 transition">
+                Pick for Me
+            </button>
+            <button type="submit" name="surprise" value="true" class="rounded-full border border-neutral-700 bg-neutral-950 px-5 py-2 text-sm font-semibold text-neutral-200 hover:bg-neutral-800 transition">
+                Surprise Me
+            </button>
+        </div>
+    </form>
+
+    {% if pick %}
+    <div class="rounded-3xl border border-neutral-800 bg-neutral-900/70 overflow-hidden">
+        <div class="grid grid-cols-1 md:grid-cols-[220px_1fr]">
+            <div class="bg-neutral-950">
+                {% if pick.media.poster_path %}
+                    <img src="https://image.tmdb.org/t/p/w500{{ pick.media.poster_path }}" alt="{{ pick.media.title }}" class="w-full h-full min-h-[320px] object-cover">
+                {% else %}
+                    <div class="min-h-[320px] flex items-center justify-center text-neutral-600 text-sm">No poster</div>
+                {% endif %}
+            </div>
+
+            <div class="p-6 md:p-8 flex flex-col justify-center">
+                <div class="text-[10px] font-semibold uppercase tracking-wider text-emerald-400">DevDB's Pick</div>
+                <h2 class="text-3xl font-bold text-white mt-2">{{ pick.media.title }}</h2>
+
+                <div class="flex flex-wrap gap-2 mt-3 text-xs text-neutral-400">
+                    <span class="rounded-full bg-neutral-800 px-2.5 py-1">{{ 'TV' if pick.media.media_type == 'tv' else 'Movie' }}</span>
+                    {% if pick.media.release_date %}
+                        <span class="rounded-full bg-neutral-800 px-2.5 py-1">{{ pick.media.release_date[:4] }}</span>
+                    {% endif %}
+                    {% if pick_length %}
+                        <span class="rounded-full bg-neutral-800 px-2.5 py-1">{{ pick_length }}</span>
+                    {% endif %}
+                    {% if pick.media.vote_average %}
+                        <span class="rounded-full bg-neutral-800 px-2.5 py-1">TMDB {{ "%.1f"|format(pick.media.vote_average) }}</span>
+                    {% endif %}
+                </div>
+
+                {% if pick.media.genres %}
+                    <div class="text-xs text-neutral-500 mt-4">{{ pick.media.genres }}</div>
+                {% endif %}
+
+                <p class="text-sm leading-6 text-neutral-300 mt-5 max-w-2xl">{{ pick.media.overview or "This title is waiting in your Want to Watch list." }}</p>
+
+                <div class="mt-5">
+                    <div class="text-[10px] font-semibold uppercase tracking-wider text-neutral-500 mb-2">Why this pick?</div>
+                    <ul class="space-y-1.5">
+                        {% for reason in pick.reasons %}
+                            <li class="text-sm text-neutral-300">• {{ reason }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+
+                <div class="flex flex-wrap gap-2 mt-7">
+                    <button hx-get="/titles/info-modal/{{ pick.media.tmdb_id }}/{{ pick.media.media_type }}" hx-target="#modal-container" hx-swap="innerHTML" class="rounded-full bg-emerald-500 px-4 py-2 text-sm font-semibold text-neutral-950 hover:bg-emerald-400 transition">
+                        Open Details
+                    </button>
+                    <form method="get" action="/what-to-watch">
+                        <input type="hidden" name="media_type" value="{{ filters.media_type }}">
+                        <input type="hidden" name="length" value="{{ filters.length }}">
+                        <input type="hidden" name="mood" value="{{ filters.mood }}">
+                        <input type="hidden" name="exclude" value="{{ pick.entry.id }}">
+                        <button type="submit" class="rounded-full border border-neutral-700 bg-neutral-950 px-4 py-2 text-sm font-semibold text-neutral-200 hover:bg-neutral-800 transition">Another Pick</button>
+                    </form>
+                    <form method="post" action="/watch-entries/{{ pick.entry.id }}/start">
+                        <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+                        <button type="submit" class="rounded-full border border-neutral-700 bg-neutral-950 px-4 py-2 text-sm font-semibold text-neutral-200 hover:bg-neutral-800 transition">Start Watching</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="rounded-3xl border border-dashed border-neutral-800 bg-neutral-900/40 px-6 py-16 text-center">
+        <h2 class="text-xl font-semibold text-white">Nothing fits those filters.</h2>
+        <p class="text-sm text-neutral-500 mt-2">Try another media type or length, or add more titles to Want to Watch.</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
