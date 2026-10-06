@@ -87,13 +87,17 @@ def _score_candidate(
     watched: list[WatchEntry],
     incoming_recommendations: set[tuple[int, str]],
     mood: str,
+    profile: Optional[tuple[Counter[str], dict[str, float], float]] = None,
 ) -> WatchPick:
     media = entry.media_item
     assert media is not None
 
-    counts, genre_averages = _genre_stats(watched)
-    rated = [e.rating for e in watched if e.rating is not None]
-    global_avg = sum(rated) / len(rated) if rated else 7.0
+    if profile is None:
+        counts, genre_averages = _genre_stats(watched)
+        rated = [e.rating for e in watched if e.rating is not None]
+        global_avg = sum(rated) / len(rated) if rated else 7.0
+    else:
+        counts, genre_averages, global_avg = profile
 
     candidate_genres = _genres(media)
     known_genres = {_genre_key(g) for g in counts}
@@ -224,8 +228,19 @@ async def get_watch_pick(
     recs = (await db.execute(rec_stmt)).all()
     incoming_recommendations = {(tmdb_id, media_kind) for tmdb_id, media_kind in recs}
 
+    counts, genre_averages = _genre_stats(watched)
+    rated = [e.rating for e in watched if e.rating is not None]
+    global_avg = sum(rated) / len(rated) if rated else 7.0
+    profile = (counts, genre_averages, global_avg)
+
     picks = [
-        _score_candidate(entry, watched, incoming_recommendations, mood)
+        _score_candidate(
+            entry,
+            watched,
+            incoming_recommendations,
+            mood,
+            profile=profile,
+        )
         for entry in entries
     ]
     picks.sort(key=lambda pick: (-pick.score, pick.media.title.casefold()))
