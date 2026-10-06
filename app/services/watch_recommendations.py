@@ -123,6 +123,26 @@ def _score_candidate(
         score += min(familiarity, 8) * 1.5
         if matched_genres:
             reasons.append("It matches genres you already watch")
+
+        watched_types = Counter(
+            e.media_item.media_type
+            for e in watched
+            if getattr(e, "media_item", None) is not None
+            and getattr(e.media_item, "media_type", None) in {"movie", "tv"}
+        )
+        total_watched = sum(watched_types.values())
+        if total_watched >= 4:
+            preferred_type, preferred_count = watched_types.most_common(1)[0]
+            share = preferred_count / total_watched
+            if share >= 0.65:
+                if media.media_type == preferred_type:
+                    score += 3
+                    reasons.append(
+                        "It matches your usual "
+                        f"{'movies' if preferred_type == 'movie' else 'TV'} preference"
+                    )
+                elif media.media_type in {"movie", "tv"}:
+                    score -= 1.5
     elif mood == "new":
         score -= min(familiarity, 6) * 1.0
         if not matched_genres:
