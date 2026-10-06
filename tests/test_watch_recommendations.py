@@ -82,3 +82,46 @@ def test_high_tmdb_rating_can_contribute_without_dominating():
     pick = _score_candidate(candidate, [], set(), "comfort")
     assert pick.score <= 4
     assert any("TMDB rating" in reason for reason in pick.reasons)
+
+
+def test_comfort_can_follow_a_clear_movie_or_tv_preference():
+    watched = [
+        entry(media(media_type="movie", genres="Drama"), 8),
+        entry(media(media_type="movie", genres="Comedy"), 7),
+        entry(media(media_type="movie", genres="Thriller"), 9),
+        entry(media(media_type="tv", genres="Drama"), 6),
+    ]
+    movie_pick = _score_candidate(
+        entry(media(media_type="movie", genres="Drama", title="Movie Pick")),
+        watched,
+        set(),
+        "comfort",
+    )
+    tv_pick = _score_candidate(
+        entry(media(media_type="tv", genres="Drama", title="TV Pick")),
+        watched,
+        set(),
+        "comfort",
+    )
+    assert movie_pick.score > tv_pick.score
+    assert any("usual movies preference" in reason for reason in movie_pick.reasons)
+
+
+def test_format_preference_is_not_used_with_tiny_history():
+    watched = [
+        entry(media(media_type="movie", genres="Drama"), 8),
+        entry(media(media_type="movie", genres="Drama"), 7),
+    ]
+    movie_pick = _score_candidate(
+        entry(media(media_type="movie", genres="Drama", title="Movie Pick")),
+        watched,
+        set(),
+        "comfort",
+    )
+    tv_pick = _score_candidate(
+        entry(media(media_type="tv", genres="Drama", title="TV Pick")),
+        watched,
+        set(),
+        "comfort",
+    )
+    assert movie_pick.score == tv_pick.score
