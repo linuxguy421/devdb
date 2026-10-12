@@ -250,6 +250,9 @@ async def get_watch_pick(
     if not entries:
         return None
 
+    from sqlalchemy import select
+    from sqlalchemy.orm import selectinload
+
     watched_stmt = (
         select(WatchEntry)
         .options(selectinload(WatchEntry.media_item))
