@@ -8,9 +8,18 @@ from typing import Optional
 from app.models import MediaItem, Recommendation, WatchEntry
 
 
+@dataclass(frozen=True)
+class WatchCandidate:
+    """Normalized title candidate; entry is absent for external discoveries."""
+
+    media: MediaItem
+    source: str
+    entry: Optional[WatchEntry] = None
+
+
 @dataclass
 class WatchPick:
-    entry: WatchEntry
+    entry: Optional[WatchEntry]
     media: MediaItem
     score: float
     reasons: list[str]
@@ -83,14 +92,18 @@ def _genre_stats(watched: list[WatchEntry]):
 
 
 def _score_candidate(
-    entry: WatchEntry,
+    entry: WatchEntry | WatchCandidate,
     watched: list[WatchEntry],
     incoming_recommendations: set[tuple[int, str]],
     mood: str,
     profile: Optional[tuple[Counter[str], dict[str, float], float]] = None,
 ) -> WatchPick:
-    media = entry.media_item
-    assert media is not None
+    candidate = (
+        entry
+        if isinstance(entry, WatchCandidate)
+        else WatchCandidate(media=entry.media_item, source="want_to_watch", entry=entry)
+    )
+    media = candidate.media
 
     if profile is None:
         counts, genre_averages = _genre_stats(watched)
@@ -169,7 +182,75 @@ def _score_candidate(
     if not reasons:
         reasons.append("It is waiting in your Want to Watch list")
 
-    return WatchPick(entry=entry, media=media, score=score, reasons=reasons[:3])
+    return WatchPick(
+        entry=candidate.entry,
+        media=media,
+        score=score,
+        reasons=reasons[:3],
+    )
+
+
+class CandidateSource:
+    """Interface for database-backed candidate sources.
+
+    Each source returns normalized WatchCandidate objects. External candidates
+    can omit the WatchEntry and still use the shared ranking pipeline.
+    """
+
+    name = "base"
+
+    async def fetch(
+        self,
+        db,
+        user_id: int,
+        media_type: str,
+        length: str,
+        exclude_entry_id: Optional[int],
+    ) -> list[WatchCandidate]:
+        raise NotImplementedError
+
+
+class WantToWatchSource(CandidateSource):
+    """Fetch eligible titles already saved in the user's Want to Watch list."""
+
+    name = "want_to_watch"
+
+    async def fetch(
+        self,
+        db,
+        user_id: int,
+        media_type: str = "all",
+        length: str = "any",
+        exclude_entry_id: Optional[int] = None,
+    ) -> list[WatchCandidate]:
+        from sqlalchemy import select
+        from sqlalchemy.orm import selectinload
+
+        stmt = (
+            select(WatchEntry)
+            .options(selectinload(WatchEntry.media_item))
+            .where(
+                WatchEntry.user_id == user_id,
+                WatchEntry.status == "want_to_watch",
+            )
+        )
+        if media_type in {"movie", "tv"}:
+            stmt = stmt.join(WatchEntry.media_item).where(
+                MediaItem.media_type == media_type
+            )
+        if exclude_entry_id is not None:
+            stmt = stmt.where(WatchEntry.id != exclude_entry_id)
+
+        entries = (await db.execute(stmt)).scalars().all()
+        return [
+            WatchCandidate(
+                media=entry.media_item,
+                source=self.name,
+                entry=entry,
+            )
+            for entry in entries
+            if entry.media_item and _matches_length(entry.media_item, length)
+        ]
 
 
 async def get_watch_pick(
@@ -181,32 +262,19 @@ async def get_watch_pick(
     exclude_entry_id: Optional[int] = None,
     surprise: bool = False,
 ) -> Optional[WatchPick]:
+    candidates = await WantToWatchSource().fetch(
+        db,
+        user_id,
+        media_type=media_type,
+        length=length,
+        exclude_entry_id=exclude_entry_id,
+    )
+
+    if not candidates:
+        return None
+
     from sqlalchemy import select
     from sqlalchemy.orm import selectinload
-
-    entry_stmt = (
-        select(WatchEntry)
-        .options(selectinload(WatchEntry.media_item))
-        .where(
-            WatchEntry.user_id == user_id,
-            WatchEntry.status == "want_to_watch",
-        )
-    )
-    if media_type in {"movie", "tv"}:
-        entry_stmt = entry_stmt.join(WatchEntry.media_item).where(
-            MediaItem.media_type == media_type
-        )
-    if exclude_entry_id is not None:
-        entry_stmt = entry_stmt.where(WatchEntry.id != exclude_entry_id)
-
-    entries = (await db.execute(entry_stmt)).scalars().all()
-    entries = [
-        entry for entry in entries
-        if entry.media_item and _matches_length(entry.media_item, length)
-    ]
-
-    if not entries:
-        return None
 
     watched_stmt = (
         select(WatchEntry)
@@ -235,13 +303,13 @@ async def get_watch_pick(
 
     picks = [
         _score_candidate(
-            entry,
+            candidate,
             watched,
             incoming_recommendations,
             mood,
             profile=profile,
         )
-        for entry in entries
+        for candidate in candidates
     ]
     picks.sort(key=lambda pick: (-pick.score, pick.media.title.casefold()))
 
