@@ -125,3 +125,45 @@ def test_format_preference_is_not_used_with_tiny_history():
         "comfort",
     )
     assert movie_pick.score == tv_pick.score
+
+
+
+def test_watchlist_source_implements_candidate_source_contract():
+    from app.services.watch_recommendations import CandidateSource, WantToWatchSource
+
+    assert issubclass(WantToWatchSource, CandidateSource)
+
+
+def test_watchlist_source_filters_missing_media_and_length():
+    import asyncio
+
+    from app.services.watch_recommendations import WantToWatchSource
+
+    entries = [
+        entry(media(runtime=90, title="Short")),
+        entry(media(runtime=170, title="Long")),
+        entry(None),
+    ]
+
+    class Result:
+        def scalars(self):
+            return self
+
+        def all(self):
+            return entries
+
+    class FakeDB:
+        async def execute(self, statement):
+            return Result()
+
+    result = asyncio.run(
+        WantToWatchSource().fetch(
+            FakeDB(),
+            user_id=1,
+            media_type="all",
+            length="short",
+            exclude_entry_id=None,
+        )
+    )
+    assert len(result) == 1
+    assert result[0].media_item.title == "Short"
