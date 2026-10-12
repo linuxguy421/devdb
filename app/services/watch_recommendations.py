@@ -8,9 +8,18 @@ from typing import Optional
 from app.models import MediaItem, Recommendation, WatchEntry
 
 
+@dataclass(frozen=True)
+class WatchCandidate:
+    """Normalized title candidate; entry is absent for external discoveries."""
+
+    media: MediaItem
+    source: str
+    entry: Optional[WatchEntry] = None
+
+
 @dataclass
 class WatchPick:
-    entry: WatchEntry
+    entry: Optional[WatchEntry]
     media: MediaItem
     score: float
     reasons: list[str]
@@ -83,14 +92,18 @@ def _genre_stats(watched: list[WatchEntry]):
 
 
 def _score_candidate(
-    entry: WatchEntry,
+    entry: WatchEntry | WatchCandidate,
     watched: list[WatchEntry],
     incoming_recommendations: set[tuple[int, str]],
     mood: str,
     profile: Optional[tuple[Counter[str], dict[str, float], float]] = None,
 ) -> WatchPick:
-    media = entry.media_item
-    assert media is not None
+    candidate = (
+        entry
+        if isinstance(entry, WatchCandidate)
+        else WatchCandidate(media=entry.media_item, source="want_to_watch", entry=entry)
+    )
+    media = candidate.media
 
     if profile is None:
         counts, genre_averages = _genre_stats(watched)
@@ -169,7 +182,12 @@ def _score_candidate(
     if not reasons:
         reasons.append("It is waiting in your Want to Watch list")
 
-    return WatchPick(entry=entry, media=media, score=score, reasons=reasons[:3])
+    return WatchPick(
+        entry=candidate.entry,
+        media=media,
+        score=score,
+        reasons=reasons[:3],
+    )
 
 
 class CandidateSource:
@@ -188,7 +206,7 @@ class CandidateSource:
         media_type: str,
         length: str,
         exclude_entry_id: Optional[int],
-    ) -> list[WatchEntry]:
+    ) -> list[WatchCandidate]:
         raise NotImplementedError
 
 
@@ -204,7 +222,7 @@ class WantToWatchSource(CandidateSource):
         media_type: str = "all",
         length: str = "any",
         exclude_entry_id: Optional[int] = None,
-    ) -> list[WatchEntry]:
+    ) -> list[WatchCandidate]:
         from sqlalchemy import select
         from sqlalchemy.orm import selectinload
 
@@ -225,7 +243,12 @@ class WantToWatchSource(CandidateSource):
 
         entries = (await db.execute(stmt)).scalars().all()
         return [
-            entry for entry in entries
+            WatchCandidate(
+                media=entry.media_item,
+                source=self.name,
+                entry=entry,
+            )
+            for entry in entries
             if entry.media_item and _matches_length(entry.media_item, length)
         ]
 
@@ -239,7 +262,7 @@ async def get_watch_pick(
     exclude_entry_id: Optional[int] = None,
     surprise: bool = False,
 ) -> Optional[WatchPick]:
-    entries = await WantToWatchSource().fetch(
+    candidates = await WantToWatchSource().fetch(
         db,
         user_id,
         media_type=media_type,
@@ -247,7 +270,7 @@ async def get_watch_pick(
         exclude_entry_id=exclude_entry_id,
     )
 
-    if not entries:
+    if not candidates:
         return None
 
     from sqlalchemy import select
@@ -280,13 +303,13 @@ async def get_watch_pick(
 
     picks = [
         _score_candidate(
-            entry,
+            candidate,
             watched,
             incoming_recommendations,
             mood,
             profile=profile,
         )
-        for entry in entries
+        for candidate in candidates
     ]
     picks.sort(key=lambda pick: (-pick.score, pick.media.title.casefold()))
 
