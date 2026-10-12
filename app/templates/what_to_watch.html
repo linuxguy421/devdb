@@ -6,11 +6,20 @@
 <div class="max-w-5xl mx-auto space-y-6">
     <div>
         <h1 class="text-3xl font-bold tracking-tight text-white">What Should I Watch?</h1>
-        <p class="text-sm text-neutral-400 mt-1">Let DevDB pick something from your Want to Watch list based on your taste.</p>
+        <p class="text-sm text-neutral-400 mt-1">Get a personalized pick from your list, or discover something new through TMDB.</p>
     </div>
 
     <form method="get" action="/what-to-watch" class="rounded-2xl border border-neutral-800 bg-neutral-900/60 p-4">
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <label class="space-y-1.5">
+                <span class="text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Source</span>
+                <select name="source" class="w-full rounded-lg border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-200">
+                    <option value="for_you" {% if filters.source == 'for_you' %}selected{% endif %}>For You · blended</option>
+                    <option value="my_list" {% if filters.source == 'my_list' %}selected{% endif %}>My Want to Watch</option>
+                    <option value="discover" {% if filters.source == 'discover' %}selected{% endif %}>Discover on TMDB</option>
+                </select>
+            </label>
+
             <label class="space-y-1.5">
                 <span class="text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Type</span>
                 <select name="media_type" class="w-full rounded-lg border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-200">
@@ -61,7 +70,7 @@
             </div>
 
             <div class="p-6 md:p-8 flex flex-col justify-center">
-                <div class="text-[10px] font-semibold uppercase tracking-wider text-emerald-400">DevDB's Pick</div>
+                <div class="text-[10px] font-semibold uppercase tracking-wider text-emerald-400">DevDB's Pick · {{ 'TMDB Discovery' if pick.source == 'tmdb_discovery' else 'Your Want to Watch List' }}</div>
                 <h2 class="text-3xl font-bold text-white mt-2">{{ pick.media.title }}</h2>
 
                 <div class="flex flex-wrap gap-2 mt-3 text-xs text-neutral-400">
@@ -81,7 +90,7 @@
                     <div class="text-xs text-neutral-500 mt-4">{{ pick.media.genres }}</div>
                 {% endif %}
 
-                <p class="text-sm leading-6 text-neutral-300 mt-5 max-w-2xl">{{ pick.media.overview or "This title is waiting in your Want to Watch list." }}</p>
+                <p class="text-sm leading-6 text-neutral-300 mt-5 max-w-2xl">{{ pick.media.overview or ("This title was discovered on TMDB." if pick.entry is none else "This title is waiting in your Want to Watch list.") }}</p>
 
                 <div class="mt-5">
                     <div class="text-[10px] font-semibold uppercase tracking-wider text-neutral-500 mb-2">Why this pick?</div>
@@ -100,15 +109,32 @@
                         <input type="hidden" name="media_type" value="{{ filters.media_type }}">
                         <input type="hidden" name="length" value="{{ filters.length }}">
                         <input type="hidden" name="mood" value="{{ filters.mood }}">
-                        <input type="hidden" name="exclude" value="{{ pick.entry.id }}">
+                        <input type="hidden" name="source" value="{{ filters.source }}">
+                        {% if pick.entry %}
+                            <input type="hidden" name="exclude" value="{{ pick.entry.id }}">
+                        {% else %}
+                            <input type="hidden" name="exclude_tmdb_id" value="{{ pick.media.tmdb_id }}">
+                        {% endif %}
                         <button type="submit" class="rounded-full border border-neutral-700 bg-neutral-950 px-4 py-2 text-sm font-semibold text-neutral-200 hover:bg-neutral-800 transition">Another Pick</button>
                     </form>
+{% if pick.entry %}
                     <form hx-post="/watch-entries/{{ pick.entry.id }}/start"
                           hx-swap="none"
                           hx-on::after-request="window.location.reload()">
                         <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
                         <button type="submit" class="rounded-full border border-neutral-700 bg-neutral-950 px-4 py-2 text-sm font-semibold text-neutral-200 hover:bg-neutral-800 transition">Start Watching</button>
                     </form>
+                    {% else %}
+                    <form hx-post="/watch-entries/add"
+                          hx-swap="none"
+                          hx-on::after-request="window.location.reload()">
+                        <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+                        <input type="hidden" name="tmdb_id" value="{{ pick.media.tmdb_id }}">
+                        <input type="hidden" name="media_type" value="{{ pick.media.media_type }}">
+                        <input type="hidden" name="status_val" value="want_to_watch">
+                        <button type="submit" class="rounded-full border border-neutral-700 bg-neutral-950 px-4 py-2 text-sm font-semibold text-neutral-200 hover:bg-neutral-800 transition">Add to Want to Watch</button>
+                    </form>
+                    {% endif %}
                 </div>
             </div>
         </div>
@@ -116,7 +142,7 @@
     {% else %}
     <div class="rounded-3xl border border-dashed border-neutral-800 bg-neutral-900/40 px-6 py-16 text-center">
         <h2 class="text-xl font-semibold text-white">Nothing fits those filters.</h2>
-        <p class="text-sm text-neutral-500 mt-2">Try another media type or length, or add more titles to Want to Watch.</p>
+        <p class="text-sm text-neutral-500 mt-2">Try another source or filter. TMDB discovery needs a configured TMDB API key.</p>
     </div>
     {% endif %}
 </div>
