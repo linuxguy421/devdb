@@ -193,8 +193,8 @@ def _score_candidate(
 class CandidateSource:
     """Interface for database-backed candidate sources.
 
-    New discovery providers should return WatchEntry-compatible candidates via
-    an adapter while preserving the shared ranking pipeline.
+    Each source returns normalized WatchCandidate objects. External candidates
+    can omit the WatchEntry and still use the shared ranking pipeline.
     """
 
     name = "base"
