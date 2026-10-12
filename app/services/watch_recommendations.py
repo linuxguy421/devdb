@@ -309,10 +309,15 @@ class TMDBDiscoverySource(CandidateSource):
         for kind in kinds:
             # The existing service caches discovery results; one page per type
             # keeps the request bounded and avoids unbounded external API calls.
-            payload = await tmdb_service.discover_titles(
-                media_type=kind,
-                sort_by="popularity.desc",
-            )
+            try:
+                payload = await tmdb_service.discover_titles(
+                    media_type=kind,
+                    sort_by="popularity.desc",
+                )
+            except Exception:
+                # A transient TMDB failure should not take down the blended
+                # recommendation page or prevent the local-list source working.
+                continue
             for raw in payload.get("results", []):
                 tmdb_id = raw.get("id")
                 if not tmdb_id or (tmdb_id, kind) in existing:
