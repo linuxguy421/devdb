@@ -342,9 +342,7 @@ class TMDBDiscoverySource(CandidateSource):
                     total_seasons=None,
                     total_episodes=raw.get("number_of_episodes"),
                 )
-                if not _matches_length(media, length):
-                    # Runtime and episode counts are often absent from discover
-                    # results. Unknown duration stays eligible only for "any".
+                if length != "any" and _runtime_bucket(media) != "unknown" and not _matches_length(media, length):
                     continue
                 candidates.append(
                     WatchCandidate(media=media, source=self.name, entry=None)
@@ -362,6 +360,7 @@ async def get_watch_pick(
     exclude_entry_id: Optional[int] = None,
     surprise: bool = False,
     source: str = "for_you",
+    exclude_tmdb_id: Optional[int] = None,
 ) -> Optional[WatchPick]:
     source_map = {
         "my_list": [WantToWatchSource()],
@@ -389,7 +388,10 @@ async def get_watch_pick(
         previous = unique.get(key)
         if previous is None or (previous.entry is None and candidate.entry is not None):
             unique[key] = candidate
-    candidates = list(unique.values())
+    candidates = [
+        candidate for candidate in unique.values()
+        if exclude_tmdb_id is None or candidate.media.tmdb_id != exclude_tmdb_id
+    ]
 
     if not candidates:
         return None
