@@ -172,6 +172,64 @@ def _score_candidate(
     return WatchPick(entry=entry, media=media, score=score, reasons=reasons[:3])
 
 
+class CandidateSource:
+    """Interface for database-backed candidate sources.
+
+    New discovery providers should return WatchEntry-compatible candidates via
+    an adapter while preserving the shared ranking pipeline.
+    """
+
+    name = "base"
+
+    async def fetch(
+        self,
+        db,
+        user_id: int,
+        media_type: str,
+        length: str,
+        exclude_entry_id: Optional[int],
+    ) -> list[WatchEntry]:
+        raise NotImplementedError
+
+
+class WantToWatchSource(CandidateSource):
+    """Fetch eligible titles already saved in the user's Want to Watch list."""
+
+    name = "want_to_watch"
+
+    async def fetch(
+        self,
+        db,
+        user_id: int,
+        media_type: str = "all",
+        length: str = "any",
+        exclude_entry_id: Optional[int] = None,
+    ) -> list[WatchEntry]:
+        from sqlalchemy import select
+        from sqlalchemy.orm import selectinload
+
+        stmt = (
+            select(WatchEntry)
+            .options(selectinload(WatchEntry.media_item))
+            .where(
+                WatchEntry.user_id == user_id,
+                WatchEntry.status == "want_to_watch",
+            )
+        )
+        if media_type in {"movie", "tv"}:
+            stmt = stmt.join(WatchEntry.media_item).where(
+                MediaItem.media_type == media_type
+            )
+        if exclude_entry_id is not None:
+            stmt = stmt.where(WatchEntry.id != exclude_entry_id)
+
+        entries = (await db.execute(stmt)).scalars().all()
+        return [
+            entry for entry in entries
+            if entry.media_item and _matches_length(entry.media_item, length)
+        ]
+
+
 async def get_watch_pick(
     db,
     user_id: int,
@@ -181,29 +239,13 @@ async def get_watch_pick(
     exclude_entry_id: Optional[int] = None,
     surprise: bool = False,
 ) -> Optional[WatchPick]:
-    from sqlalchemy import select
-    from sqlalchemy.orm import selectinload
-
-    entry_stmt = (
-        select(WatchEntry)
-        .options(selectinload(WatchEntry.media_item))
-        .where(
-            WatchEntry.user_id == user_id,
-            WatchEntry.status == "want_to_watch",
-        )
+    entries = await WantToWatchSource().fetch(
+        db,
+        user_id,
+        media_type=media_type,
+        length=length,
+        exclude_entry_id=exclude_entry_id,
     )
-    if media_type in {"movie", "tv"}:
-        entry_stmt = entry_stmt.join(WatchEntry.media_item).where(
-            MediaItem.media_type == media_type
-        )
-    if exclude_entry_id is not None:
-        entry_stmt = entry_stmt.where(WatchEntry.id != exclude_entry_id)
-
-    entries = (await db.execute(entry_stmt)).scalars().all()
-    entries = [
-        entry for entry in entries
-        if entry.media_item and _matches_length(entry.media_item, length)
-    ]
 
     if not entries:
         return None
