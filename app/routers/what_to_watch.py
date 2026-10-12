@@ -22,6 +22,8 @@ async def what_to_watch(
     mood: str = Query("comfort"),
     exclude: Optional[int] = Query(None),
     surprise: bool = Query(False),
+    source: str = Query("for_you"),
+    exclude_tmdb_id: Optional[int] = Query(None),
     db: AsyncSession = Depends(get_db),
     current_user: Optional[User] = Depends(get_current_user),
 ):
@@ -31,6 +33,7 @@ async def what_to_watch(
     media_type = media_type if media_type in {"all", "movie", "tv"} else "all"
     length = length if length in {"any", "short", "normal", "long"} else "any"
     mood = mood if mood in {"comfort", "new"} else "comfort"
+    source = source if source in {"for_you", "my_list", "discover"} else "for_you"
 
     pick = await get_watch_pick(
         db,
@@ -40,6 +43,8 @@ async def what_to_watch(
         mood=mood,
         exclude_entry_id=exclude,
         surprise=surprise,
+        source=source,
+        exclude_tmdb_id=exclude_tmdb_id,
     )
 
     return templates.TemplateResponse(
@@ -54,6 +59,7 @@ async def what_to_watch(
                 "media_type": media_type,
                 "length": length,
                 "mood": mood,
+                "source": source,
             },
         },
     )
