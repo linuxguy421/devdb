@@ -23,6 +23,7 @@ class WatchPick:
     media: MediaItem
     score: float
     reasons: list[str]
+    source: str = "want_to_watch"
 
 
 def _genres(media: MediaItem) -> list[str]:
@@ -180,13 +181,18 @@ def _score_candidate(
         reasons.append("A buddy recommended it to you")
 
     if not reasons:
-        reasons.append("It is waiting in your Want to Watch list")
+        reasons.append(
+            "It is waiting in your Want to Watch list"
+            if candidate.source == "want_to_watch"
+            else "It was discovered on TMDB and matches your filters"
+        )
 
     return WatchPick(
         entry=candidate.entry,
         media=media,
         score=score,
         reasons=reasons[:3],
+        source=candidate.source,
     )
 
 
@@ -253,6 +259,100 @@ class WantToWatchSource(CandidateSource):
         ]
 
 
+class TMDBDiscoverySource(CandidateSource):
+    """Discover external titles without persisting them to the user's library."""
+
+    name = "tmdb_discovery"
+
+    # TMDB genre IDs are stable identifiers. Keep labels normalized to the
+    # comma-separated format used by MediaItem and the ranking profile.
+    GENRES = {
+        "movie": {
+            28: "Action", 12: "Adventure", 16: "Animation", 35: "Comedy",
+            80: "Crime", 99: "Documentary", 18: "Drama", 10751: "Family",
+            14: "Fantasy", 36: "History", 27: "Horror", 10402: "Music",
+            9648: "Mystery", 10749: "Romance", 878: "Science Fiction",
+            10770: "TV Movie", 53: "Thriller", 10752: "War", 37: "Western",
+        },
+        "tv": {
+            10759: "Action & Adventure", 16: "Animation", 35: "Comedy",
+            80: "Crime", 99: "Documentary", 18: "Drama", 10751: "Family",
+            10762: "Kids", 9648: "Mystery", 10763: "News", 10764: "Reality",
+            10765: "Sci-Fi & Fantasy", 10766: "Soap", 10767: "Talk",
+            10768: "War & Politics", 37: "Western",
+        },
+    }
+
+    async def fetch(
+        self,
+        db,
+        user_id: int,
+        media_type: str = "all",
+        length: str = "any",
+        exclude_entry_id: Optional[int] = None,
+    ) -> list[WatchCandidate]:
+        from sqlalchemy import select
+        from app.services.tmdb import tmdb_service
+
+        existing_stmt = (
+            select(MediaItem.tmdb_id, MediaItem.media_type)
+            .join(WatchEntry, WatchEntry.media_item_id == MediaItem.id)
+            .where(WatchEntry.user_id == user_id)
+        )
+        existing = {
+            (tmdb_id, kind)
+            for tmdb_id, kind in (await db.execute(existing_stmt)).all()
+        }
+
+        kinds = [media_type] if media_type in {"movie", "tv"} else ["movie", "tv"]
+        candidates: list[WatchCandidate] = []
+        for kind in kinds:
+            # The existing service caches discovery results; one page per type
+            # keeps the request bounded and avoids unbounded external API calls.
+            payload = await tmdb_service.discover_titles(
+                media_type=kind,
+                sort_by="popularity.desc",
+            )
+            for raw in payload.get("results", []):
+                tmdb_id = raw.get("id")
+                if not tmdb_id or (tmdb_id, kind) in existing:
+                    continue
+
+                title = raw.get("title") if kind == "movie" else raw.get("name")
+                if not title:
+                    continue
+
+                genre_map = self.GENRES[kind]
+                genres = [
+                    genre_map[genre_id]
+                    for genre_id in raw.get("genre_ids", [])
+                    if genre_id in genre_map
+                ]
+                media = MediaItem(
+                    tmdb_id=tmdb_id,
+                    media_type=kind,
+                    title=title,
+                    overview=raw.get("overview"),
+                    poster_path=raw.get("poster_path"),
+                    backdrop_path=raw.get("backdrop_path"),
+                    release_date=raw.get("release_date") if kind == "movie" else raw.get("first_air_date"),
+                    runtime=None,
+                    genres=", ".join(genres) or None,
+                    vote_average=raw.get("vote_average"),
+                    total_seasons=None,
+                    total_episodes=raw.get("number_of_episodes"),
+                )
+                if not _matches_length(media, length):
+                    # Runtime and episode counts are often absent from discover
+                    # results. Unknown duration stays eligible only for "any".
+                    continue
+                candidates.append(
+                    WatchCandidate(media=media, source=self.name, entry=None)
+                )
+
+        return candidates
+
+
 async def get_watch_pick(
     db,
     user_id: int,
@@ -261,14 +361,35 @@ async def get_watch_pick(
     mood: str = "comfort",
     exclude_entry_id: Optional[int] = None,
     surprise: bool = False,
+    source: str = "for_you",
 ) -> Optional[WatchPick]:
-    candidates = await WantToWatchSource().fetch(
-        db,
-        user_id,
-        media_type=media_type,
-        length=length,
-        exclude_entry_id=exclude_entry_id,
-    )
+    source_map = {
+        "my_list": [WantToWatchSource()],
+        "discover": [TMDBDiscoverySource()],
+        "for_you": [WantToWatchSource(), TMDBDiscoverySource()],
+    }
+    sources = source_map.get(source, source_map["for_you"])
+    candidates: list[WatchCandidate] = []
+    for candidate_source in sources:
+        candidates.extend(
+            await candidate_source.fetch(
+                db,
+                user_id,
+                media_type=media_type,
+                length=length,
+                exclude_entry_id=exclude_entry_id,
+            )
+        )
+
+    # Multiple providers may surface the same title. Prefer the saved entry
+    # when present so existing watch actions remain available.
+    unique: dict[tuple[int, str], WatchCandidate] = {}
+    for candidate in candidates:
+        key = (candidate.media.tmdb_id, candidate.media.media_type)
+        previous = unique.get(key)
+        if previous is None or (previous.entry is None and candidate.entry is not None):
+            unique[key] = candidate
+    candidates = list(unique.values())
 
     if not candidates:
         return None
