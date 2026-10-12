@@ -166,4 +166,6 @@ def test_watchlist_source_filters_missing_media_and_length():
         )
     )
     assert len(result) == 1
-    assert result[0].media_item.title == "Short"
+    assert result[0].media.title == "Short"
+    assert result[0].source == "want_to_watch"
+    assert result[0].entry is entries[0]
