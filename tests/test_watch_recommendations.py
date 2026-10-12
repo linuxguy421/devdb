@@ -169,3 +169,102 @@ def test_watchlist_source_filters_missing_media_and_length():
     assert result[0].media.title == "Short"
     assert result[0].source == "want_to_watch"
     assert result[0].entry is entries[0]
+
+
+
+def test_tmdb_discovery_source_normalizes_and_skips_titles_already_in_my_media(monkeypatch):
+    import asyncio
+
+    from app.services import tmdb
+    from app.services.watch_recommendations import TMDBDiscoverySource
+
+    async def fake_discover_titles(media_type="movie", sort_by="popularity.desc", **kwargs):
+        if media_type == "movie":
+            return {
+                "results": [
+                    {
+                        "id": 10,
+                        "title": "Already Saved",
+                        "overview": "Existing",
+                        "genre_ids": [18],
+                        "vote_average": 8.1,
+                    },
+                    {
+                        "id": 11,
+                        "title": "New Discovery",
+                        "overview": "Fresh",
+                        "genre_ids": [878, 12],
+                        "vote_average": 7.9,
+                        "poster_path": "/poster.jpg",
+                    },
+                ]
+            }
+        return {"results": []}
+
+    monkeypatch.setattr(tmdb.tmdb_service, "discover_titles", fake_discover_titles)
+
+    class Result:
+        def all(self):
+            return [(10, "movie")]
+
+    class FakeDB:
+        async def execute(self, statement):
+            return Result()
+
+    candidates = asyncio.run(
+        TMDBDiscoverySource().fetch(
+            FakeDB(),
+            user_id=7,
+            media_type="movie",
+            length="any",
+            exclude_entry_id=None,
+        )
+    )
+
+    assert len(candidates) == 1
+    assert candidates[0].source == "tmdb_discovery"
+    assert candidates[0].entry is None
+    assert candidates[0].media.tmdb_id == 11
+    assert candidates[0].media.title == "New Discovery"
+    assert candidates[0].media.genres == "Science Fiction, Adventure"
+
+
+def test_discovery_candidates_allow_unknown_runtime_when_length_is_filtered(monkeypatch):
+    import asyncio
+
+    from app.services import tmdb
+    from app.services.watch_recommendations import TMDBDiscoverySource
+
+    async def fake_discover_titles(media_type="movie", sort_by="popularity.desc", **kwargs):
+        return {
+            "results": [
+                {
+                    "id": 99,
+                    "title": "Unknown Runtime",
+                    "genre_ids": [35],
+                    "vote_average": 7.0,
+                }
+            ]
+        } if media_type == "movie" else {"results": []}
+
+    monkeypatch.setattr(tmdb.tmdb_service, "discover_titles", fake_discover_titles)
+
+    class Result:
+        def all(self):
+            return []
+
+    class FakeDB:
+        async def execute(self, statement):
+            return Result()
+
+    candidates = asyncio.run(
+        TMDBDiscoverySource().fetch(
+            FakeDB(),
+            user_id=7,
+            media_type="movie",
+            length="short",
+            exclude_entry_id=None,
+        )
+    )
+    assert len(candidates) == 1
+    assert candidates[0].media.runtime is None
