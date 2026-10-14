@@ -456,6 +456,15 @@ class BuddyRecommendationSource(CandidateSource):
         if media_type in {"movie", "tv"}:
             stmt = stmt.where(Recommendation.media_type == media_type)
         rows = (await db.execute(stmt)).all()
+        existing_stmt = (
+            select(MediaItem.tmdb_id, MediaItem.media_type)
+            .join(WatchEntry, WatchEntry.media_item_id == MediaItem.id)
+            .where(WatchEntry.user_id == user_id)
+        )
+        existing = {
+            (tmdb_id, kind)
+            for tmdb_id, kind in (await db.execute(existing_stmt)).all()
+        }
         grouped: dict[tuple[int, str], dict] = {}
         for rec, username in rows:
             key = (rec.tmdb_id, rec.media_type)
@@ -466,7 +475,9 @@ class BuddyRecommendationSource(CandidateSource):
                 item["notes"].append(rec.note)
 
         candidates: list[WatchCandidate] = []
-        for (tmdb_id, kind), info in grouped.items():
+        for (tmdb_id, kind), info in list(grouped.items())[:20]:
+            if (tmdb_id, kind) in existing:
+                continue
             try:
                 details = await tmdb_service.get_formatted_details(tmdb_id, kind)
             except Exception:
