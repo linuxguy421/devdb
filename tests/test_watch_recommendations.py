@@ -301,3 +301,52 @@ def test_buddy_candidate_includes_recommender_and_note_in_reasons():
     assert any("Recommended by alex" in reason for reason in pick.reasons)
     assert any("Great twist ending" in reason for reason in pick.reasons)
     assert pick.source == "buddies"
+
+
+def test_tmdb_discovery_blends_popular_and_hidden_gem_pools(monkeypatch):
+    import asyncio
+
+    from app.services import tmdb
+    from app.services.watch_recommendations import TMDBDiscoverySource
+
+    calls = []
+
+    async def fake_discover_titles(**kwargs):
+        calls.append(kwargs)
+        if kwargs["sort_by"] == "popularity.desc":
+            return {"results": [
+                {"id": 1, "title": "Popular", "genre_ids": [18], "vote_average": 7.4},
+                {"id": 2, "title": "Overlap", "genre_ids": [18], "vote_average": 8.1},
+            ]}
+        return {"results": [
+            {"id": 2, "title": "Overlap", "genre_ids": [18], "vote_average": 8.1},
+            {"id": 3, "title": "Hidden Gem", "genre_ids": [18], "vote_average": 8.7},
+        ]}
+
+    class Result:
+        def all(self):
+            return []
+
+    class FakeDB:
+        async def execute(self, statement):
+            return Result()
+
+    monkeypatch.setattr(tmdb.tmdb_service, "discover_titles", fake_discover_titles)
+    candidates = asyncio.run(
+        TMDBDiscoverySource().fetch(
+            FakeDB(),
+            user_id=1,
+            media_type="movie",
+            length="any",
+            exclude_entry_id=None,
+        )
+    )
+
+    assert [candidate.media.title for candidate in candidates] == [
+        "Popular", "Overlap", "Hidden Gem"
+    ]
+    assert [call["sort_by"] for call in calls] == [
+        "popularity.desc", "vote_average.desc"
+    ]
+    assert calls[1]["min_vote_count"] == 100
+
