@@ -17,6 +17,7 @@ class WatchCandidate:
     entry: Optional[WatchEntry] = None
     recommendation_names: list[str] = field(default_factory=list)
     recommendation_notes: list[str] = field(default_factory=list)
+    discovery_pool: Optional[str] = None
 
 
 @dataclass
@@ -28,6 +29,7 @@ class WatchPick:
     source: str = "want_to_watch"
     recommendation_names: list[str] = field(default_factory=list)
     recommendation_notes: list[str] = field(default_factory=list)
+    discovery_pool: Optional[str] = None
 
 
 def _genres(media: MediaItem) -> list[str]:
@@ -233,6 +235,7 @@ def _score_candidate(
         source=candidate.source,
         recommendation_names=candidate.recommendation_names,
         recommendation_notes=candidate.recommendation_notes,
+        discovery_pool=candidate.discovery_pool,
     )
 
 
@@ -376,6 +379,10 @@ class TMDBDiscoverySource(CandidateSource):
             )
             seen_for_kind: set[int] = set()
             for pool in discovery_pools:
+                pool_name = (
+                    "popular" if pool["sort_by"] == "popularity.desc"
+                    else "hidden_gem"
+                )
                 try:
                     payload = await tmdb_service.discover_titles(
                         media_type=kind,
@@ -423,7 +430,12 @@ class TMDBDiscoverySource(CandidateSource):
                     if length != "any" and _runtime_bucket(media) != "unknown" and not _matches_length(media, length):
                         continue
                     candidates.append(
-                        WatchCandidate(media=media, source=self.name, entry=None)
+                        WatchCandidate(
+                            media=media,
+                            source=self.name,
+                            entry=None,
+                            discovery_pool=pool_name,
+                        )
                     )
 
         return candidates
@@ -620,7 +632,19 @@ async def get_watch_pick(
     picks.sort(key=lambda pick: (-pick.score, pick.media.title.casefold()))
 
     if surprise and len(picks) > 1:
-        return random.choice(picks[: min(5, len(picks))])
+        # Surprise mode exposes a short ranked shortlist. Keep it from being
+        # dominated by popularity results when a qualifying hidden gem exists.
+        shortlist = picks[: min(5, len(picks))]
+        if source == "discover" and not any(
+            pick.discovery_pool == "hidden_gem" for pick in shortlist
+        ):
+            hidden_gem = next(
+                (pick for pick in picks if pick.discovery_pool == "hidden_gem"),
+                None,
+            )
+            if hidden_gem is not None:
+                shortlist[-1] = hidden_gem
+        return random.choice(shortlist)
     return picks[0]
 
 
