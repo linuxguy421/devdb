@@ -367,55 +367,64 @@ class TMDBDiscoverySource(CandidateSource):
         kinds = [media_type] if media_type in {"movie", "tv"} else ["movie", "tv"]
         candidates: list[WatchCandidate] = []
         for kind in kinds:
-            # The existing service caches discovery results; one page per type
-            # keeps the request bounded and avoids unbounded external API calls.
-            try:
-                payload = await tmdb_service.discover_titles(
-                    media_type=kind,
-                    sort_by="popularity.desc",
-                    genre_id=self.GENRE_IDS.get(kind, {}).get(genre),
-                    year_filter=year_filter if year_filter != "any" else None,
-                )
-            except Exception:
-                # A transient TMDB failure should not take down the blended
-                # recommendation page or prevent the local-list source working.
-                continue
-            for raw in payload.get("results", []):
-                tmdb_id = raw.get("id")
-                if not tmdb_id or (tmdb_id, kind) in existing:
+            # Blend mainstream discovery with a separate quality-ranked pool.
+            # The vote-count floor avoids treating a handful of ratings as a
+            # reliable hidden gem. Both requests share the user's filters.
+            discovery_pools = (
+                {"sort_by": "popularity.desc", "min_vote_count": None},
+                {"sort_by": "vote_average.desc", "min_vote_count": 100},
+            )
+            seen_for_kind: set[int] = set()
+            for pool in discovery_pools:
+                try:
+                    payload = await tmdb_service.discover_titles(
+                        media_type=kind,
+                        sort_by=pool["sort_by"],
+                        genre_id=self.GENRE_IDS.get(kind, {}).get(genre),
+                        year_filter=year_filter if year_filter != "any" else None,
+                        min_vote_count=pool["min_vote_count"],
+                    )
+                except Exception:
+                    # A transient failure in one pool should not discard results
+                    # from the other pool or the local-list source.
                     continue
+                for raw in payload.get("results", []):
+                    tmdb_id = raw.get("id")
+                    if not tmdb_id or (tmdb_id, kind) in existing or tmdb_id in seen_for_kind:
+                        continue
+                    seen_for_kind.add(tmdb_id)
 
-                title = raw.get("title") if kind == "movie" else raw.get("name")
-                if not title:
-                    continue
+                    title = raw.get("title") if kind == "movie" else raw.get("name")
+                    if not title:
+                        continue
 
-                genre_map = self.GENRES[kind]
-                genres = [
-                    genre_map[genre_id]
-                    for genre_id in raw.get("genre_ids", [])
-                    if genre_id in genre_map
-                ]
-                media = MediaItem(
-                    tmdb_id=tmdb_id,
-                    media_type=kind,
-                    title=title,
-                    overview=raw.get("overview"),
-                    poster_path=raw.get("poster_path"),
-                    backdrop_path=raw.get("backdrop_path"),
-                    release_date=raw.get("release_date") if kind == "movie" else raw.get("first_air_date"),
-                    runtime=None,
-                    genres=", ".join(genres) or None,
-                    vote_average=raw.get("vote_average"),
-                    total_seasons=None,
-                    total_episodes=raw.get("number_of_episodes"),
-                )
-                if min_rating and (media.vote_average or 0) < min_rating:
-                    continue
-                if length != "any" and _runtime_bucket(media) != "unknown" and not _matches_length(media, length):
-                    continue
-                candidates.append(
-                    WatchCandidate(media=media, source=self.name, entry=None)
-                )
+                    genre_map = self.GENRES[kind]
+                    genres = [
+                        genre_map[genre_id]
+                        for genre_id in raw.get("genre_ids", [])
+                        if genre_id in genre_map
+                    ]
+                    media = MediaItem(
+                        tmdb_id=tmdb_id,
+                        media_type=kind,
+                        title=title,
+                        overview=raw.get("overview"),
+                        poster_path=raw.get("poster_path"),
+                        backdrop_path=raw.get("backdrop_path"),
+                        release_date=raw.get("release_date") if kind == "movie" else raw.get("first_air_date"),
+                        runtime=None,
+                        genres=", ".join(genres) or None,
+                        vote_average=raw.get("vote_average"),
+                        total_seasons=None,
+                        total_episodes=raw.get("number_of_episodes"),
+                    )
+                    if min_rating and (media.vote_average or 0) < min_rating:
+                        continue
+                    if length != "any" and _runtime_bucket(media) != "unknown" and not _matches_length(media, length):
+                        continue
+                    candidates.append(
+                        WatchCandidate(media=media, source=self.name, entry=None)
+                    )
 
         return candidates
 
