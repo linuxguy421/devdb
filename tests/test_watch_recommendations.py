@@ -377,3 +377,37 @@ def test_tmdb_discovery_applies_minimum_vote_count():
     assert captured["params"]["sort_by"] == "vote_average.desc"
     assert captured["params"]["vote_count.gte"] == 100
 
+
+
+def test_discovery_shortlist_keeps_hidden_gem_among_top_five():
+    from app.services.watch_recommendations import WatchPick, _discovery_shortlist
+
+    picks = [
+        WatchPick(None, media(title=f"Popular {i}"), 10 - i, [], source="tmdb_discovery", discovery_pool="popular")
+        for i in range(6)
+    ]
+    hidden_gem = WatchPick(
+        None,
+        media(title="Hidden Gem", vote_average=8.8),
+        3.0,
+        [],
+        source="tmdb_discovery",
+        discovery_pool="hidden_gem",
+    )
+    picks.append(hidden_gem)
+
+    shortlist = _discovery_shortlist(picks, limit=5)
+
+    assert len(shortlist) == 5
+    assert hidden_gem in shortlist
+    assert shortlist[0].media.title == "Popular 0"
+
+
+def test_discovery_shortlist_does_not_replace_existing_hidden_gem():
+    from app.services.watch_recommendations import WatchPick, _discovery_shortlist
+
+    popular = WatchPick(None, media(title="Popular"), 10, [], discovery_pool="popular")
+    hidden_gem = WatchPick(None, media(title="Hidden Gem"), 9, [], discovery_pool="hidden_gem")
+    shortlist = _discovery_shortlist([popular, hidden_gem], limit=5)
+
+    assert shortlist == [popular, hidden_gem]
