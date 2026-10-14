@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import random
 from collections import Counter, defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional
 
-from app.models import MediaItem, Recommendation, WatchEntry
+from app.models import Friendship, MediaItem, Recommendation, User, WatchEntry
 
 
 @dataclass(frozen=True)
@@ -15,6 +15,8 @@ class WatchCandidate:
     media: MediaItem
     source: str
     entry: Optional[WatchEntry] = None
+    recommendation_names: list[str] = field(default_factory=list)
+    recommendation_notes: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -24,6 +26,8 @@ class WatchPick:
     score: float
     reasons: list[str]
     source: str = "want_to_watch"
+    recommendation_names: list[str] = field(default_factory=list)
+    recommendation_notes: list[str] = field(default_factory=list)
 
 
 def _genres(media: MediaItem) -> list[str]:
@@ -57,6 +61,35 @@ def _runtime_bucket(media: MediaItem) -> str:
 
 def _matches_length(media: MediaItem, length: str) -> bool:
     return length == "any" or _runtime_bucket(media) == length
+
+
+def _matches_candidate_filters(
+    media: MediaItem,
+    genre: str = "any",
+    min_rating: float = 0,
+    year_filter: str = "any",
+) -> bool:
+    if genre != "any" and not any(
+        _genre_key(value) == _genre_key(genre) for value in _genres(media)
+    ):
+        return False
+    if (media.vote_average or 0) < min_rating:
+        return False
+    if year_filter == "any":
+        return True
+    release_date = media.release_date or ""
+    if len(release_date) < 4 or not release_date[:4].isdigit():
+        return False
+    year = int(release_date[:4])
+    if year_filter.isdigit():
+        return year == int(year_filter)
+    if year_filter.startswith("decade_"):
+        try:
+            decade = int(year_filter.replace("decade_", "").replace("s", ""))
+        except ValueError:
+            return False
+        return decade <= year <= decade + 9
+    return False
 
 
 def _format_length(media: MediaItem) -> str:
@@ -119,6 +152,11 @@ def _score_candidate(
 
     score = 0.0
     reasons: list[str] = []
+    if candidate.recommendation_names:
+        names = ", ".join(candidate.recommendation_names[:3])
+        reasons.append(f"Recommended by {names}")
+    if candidate.recommendation_notes and candidate.recommendation_notes[0]:
+        reasons.append(f"Buddy note: {candidate.recommendation_notes[0][:100]}")
 
     genre_lifts = [
         genre_averages[key] - global_avg
@@ -193,6 +231,8 @@ def _score_candidate(
         score=score,
         reasons=reasons[:3],
         source=candidate.source,
+        recommendation_names=candidate.recommendation_names,
+        recommendation_notes=candidate.recommendation_notes,
     )
 
 
@@ -228,6 +268,9 @@ class WantToWatchSource(CandidateSource):
         media_type: str = "all",
         length: str = "any",
         exclude_entry_id: Optional[int] = None,
+        genre: str = "any",
+        min_rating: float = 0,
+        year_filter: str = "any",
     ) -> list[WatchCandidate]:
         from sqlalchemy import select
         from sqlalchemy.orm import selectinload
@@ -266,6 +309,20 @@ class TMDBDiscoverySource(CandidateSource):
 
     # TMDB genre IDs are stable identifiers. Keep labels normalized to the
     # comma-separated format used by MediaItem and the ranking profile.
+    GENRE_IDS = {
+        "movie": {
+            "Action": 28, "Adventure": 12, "Animation": 16, "Comedy": 35,
+            "Crime": 80, "Documentary": 99, "Drama": 18, "Family": 10751,
+            "Fantasy": 14, "History": 36, "Horror": 27, "Mystery": 9648,
+            "Romance": 10749, "Science Fiction": 878, "Thriller": 53, "Western": 37,
+        },
+        "tv": {
+            "Action & Adventure": 10759, "Animation": 16, "Comedy": 35,
+            "Crime": 80, "Documentary": 99, "Drama": 18, "Family": 10751,
+            "Kids": 10762, "Mystery": 9648, "Sci-Fi & Fantasy": 10765,
+        },
+    }
+
     GENRES = {
         "movie": {
             28: "Action", 12: "Adventure", 16: "Animation", 35: "Comedy",
@@ -290,6 +347,9 @@ class TMDBDiscoverySource(CandidateSource):
         media_type: str = "all",
         length: str = "any",
         exclude_entry_id: Optional[int] = None,
+        genre: str = "any",
+        min_rating: float = 0,
+        year_filter: str = "any",
     ) -> list[WatchCandidate]:
         from sqlalchemy import select
         from app.services.tmdb import tmdb_service
@@ -313,6 +373,8 @@ class TMDBDiscoverySource(CandidateSource):
                 payload = await tmdb_service.discover_titles(
                     media_type=kind,
                     sort_by="popularity.desc",
+                    genre_id=self.GENRE_IDS.get(kind, {}).get(genre),
+                    year_filter=year_filter if year_filter != "any" else None,
                 )
             except Exception:
                 # A transient TMDB failure should not take down the blended
@@ -347,12 +409,111 @@ class TMDBDiscoverySource(CandidateSource):
                     total_seasons=None,
                     total_episodes=raw.get("number_of_episodes"),
                 )
+                if min_rating and (media.vote_average or 0) < min_rating:
+                    continue
                 if length != "any" and _runtime_bucket(media) != "unknown" and not _matches_length(media, length):
                     continue
                 candidates.append(
                     WatchCandidate(media=media, source=self.name, entry=None)
                 )
 
+        return candidates
+
+
+class BuddyRecommendationSource(CandidateSource):
+    """Fetch incoming recommendations from accepted buddies, without persisting metadata."""
+
+    name = "buddies"
+
+    async def fetch(
+        self,
+        db,
+        user_id: int,
+        media_type: str = "all",
+        length: str = "any",
+        exclude_entry_id: Optional[int] = None,
+        genre: str = "any",
+        min_rating: float = 0,
+        year_filter: str = "any",
+    ) -> list[WatchCandidate]:
+        from sqlalchemy import and_, or_, select
+        from app.services.tmdb import tmdb_service
+
+        friendship = select(Friendship.id).where(
+            Friendship.status == "accepted",
+            or_(
+                and_(Friendship.user_id == user_id, Friendship.buddy_id == Recommendation.sender_id),
+                and_(Friendship.buddy_id == user_id, Friendship.user_id == Recommendation.sender_id),
+            ),
+        ).exists()
+        stmt = (
+            select(Recommendation, User.username)
+            .join(User, User.id == Recommendation.sender_id)
+            .where(Recommendation.receiver_id == user_id, friendship)
+            .order_by(Recommendation.created_at.desc())
+            .limit(50)
+        )
+        if media_type in {"movie", "tv"}:
+            stmt = stmt.where(Recommendation.media_type == media_type)
+        rows = (await db.execute(stmt)).all()
+        existing_stmt = (
+            select(MediaItem.tmdb_id, MediaItem.media_type)
+            .join(WatchEntry, WatchEntry.media_item_id == MediaItem.id)
+            .where(WatchEntry.user_id == user_id)
+        )
+        existing = {
+            (tmdb_id, kind)
+            for tmdb_id, kind in (await db.execute(existing_stmt)).all()
+        }
+        grouped: dict[tuple[int, str], dict] = {}
+        for rec, username in rows:
+            key = (rec.tmdb_id, rec.media_type)
+            item = grouped.setdefault(key, {"names": [], "notes": []})
+            if username not in item["names"]:
+                item["names"].append(username)
+            if rec.note and rec.note not in item["notes"]:
+                item["notes"].append(rec.note)
+
+        candidates: list[WatchCandidate] = []
+        for (tmdb_id, kind), info in list(grouped.items())[:20]:
+            if (tmdb_id, kind) in existing:
+                continue
+            try:
+                details = await tmdb_service.get_formatted_details(tmdb_id, kind)
+            except Exception:
+                continue
+            if not details or not details.get("title"):
+                continue
+            raw_genres = details.get("genres") or []
+            genre_names = [
+                genre.get("name", "") if isinstance(genre, dict) else str(genre)
+                for genre in raw_genres
+            ]
+            runtime = details.get("runtime")
+            media = MediaItem(
+                tmdb_id=tmdb_id,
+                media_type=kind,
+                title=details.get("title"),
+                overview=details.get("overview"),
+                poster_path=details.get("poster_path"),
+                backdrop_path=details.get("backdrop_path"),
+                release_date=details.get("release_date"),
+                runtime=runtime if kind == "movie" else None,
+                genres=", ".join(name for name in genre_names if name) or None,
+                vote_average=details.get("vote_average"),
+                total_seasons=details.get("number_of_seasons"),
+                total_episodes=details.get("number_of_episodes"),
+            )
+            if not _matches_length(media, length):
+                # Keep unknown runtimes eligible, matching discovery's behavior.
+                if length != "any" and _runtime_bucket(media) != "unknown":
+                    continue
+            candidates.append(WatchCandidate(
+                media=media,
+                source=self.name,
+                recommendation_names=info["names"],
+                recommendation_notes=info["notes"],
+            ))
         return candidates
 
 
@@ -366,11 +527,15 @@ async def get_watch_pick(
     surprise: bool = False,
     source: str = "for_you",
     exclude_tmdb_id: Optional[int] = None,
+    genre: str = "any",
+    min_rating: float = 0,
+    year_filter: str = "any",
 ) -> Optional[WatchPick]:
     source_map = {
         "my_list": [WantToWatchSource()],
         "discover": [TMDBDiscoverySource()],
-        "for_you": [WantToWatchSource(), TMDBDiscoverySource()],
+        "buddies": [BuddyRecommendationSource()],
+        "for_you": [WantToWatchSource(), BuddyRecommendationSource(), TMDBDiscoverySource()],
     }
     sources = source_map.get(source, source_map["for_you"])
     candidates: list[WatchCandidate] = []
@@ -382,6 +547,9 @@ async def get_watch_pick(
                 media_type=media_type,
                 length=length,
                 exclude_entry_id=exclude_entry_id,
+                genre=genre,
+                min_rating=min_rating,
+                year_filter=year_filter,
             )
         )
 
@@ -395,7 +563,8 @@ async def get_watch_pick(
             unique[key] = candidate
     candidates = [
         candidate for candidate in unique.values()
-        if exclude_tmdb_id is None or candidate.media.tmdb_id != exclude_tmdb_id
+        if (exclude_tmdb_id is None or candidate.media.tmdb_id != exclude_tmdb_id)
+        and _matches_candidate_filters(candidate.media, genre, min_rating, year_filter)
     ]
 
     if not candidates:

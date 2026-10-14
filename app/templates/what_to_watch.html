@@ -17,6 +17,7 @@
                     <option value="for_you" {% if filters.source == 'for_you' %}selected{% endif %}>For You · blended</option>
                     <option value="my_list" {% if filters.source == 'my_list' %}selected{% endif %}>My Want to Watch</option>
                     <option value="discover" {% if filters.source == 'discover' %}selected{% endif %}>Discover on TMDB</option>
+                    <option value="buddies" {% if filters.source == 'buddies' %}selected{% endif %}>From Buddies</option>
                 </select>
             </label>
 
@@ -46,6 +47,30 @@
                     <option value="new" {% if filters.mood == 'new' %}selected{% endif %}>Something New</option>
                 </select>
             </label>
+            <label class="space-y-1.5">
+                <span class="text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Genre</span>
+                <select name="genre" class="w-full rounded-lg border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-200">
+                    {% for value, label in [('any', 'Any genre'), ('Action', 'Action'), ('Adventure', 'Adventure'), ('Animation', 'Animation'), ('Comedy', 'Comedy'), ('Crime', 'Crime'), ('Documentary', 'Documentary'), ('Drama', 'Drama'), ('Family', 'Family'), ('Fantasy', 'Fantasy'), ('History', 'History'), ('Horror', 'Horror'), ('Mystery', 'Mystery'), ('Romance', 'Romance'), ('Science Fiction', 'Science Fiction'), ('Thriller', 'Thriller'), ('Western', 'Western'), ('Action & Adventure', 'Action & Adventure'), ('Kids', 'Kids'), ('Sci-Fi & Fantasy', 'Sci-Fi & Fantasy')] %}
+                    <option value="{{ value }}" {% if filters.genre == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+            <label class="space-y-1.5">
+                <span class="text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Minimum TMDB rating</span>
+                <select name="min_rating" class="w-full rounded-lg border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-200">
+                    {% for value, label in [('0', 'Any rating'), ('5', '5+'), ('6', '6+'), ('7', '7+'), ('8', '8+')] %}
+                    <option value="{{ value }}" {% if filters.min_rating|string == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+            <label class="space-y-1.5">
+                <span class="text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Release era</span>
+                <select name="year_filter" class="w-full rounded-lg border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-200">
+                    {% for value, label in [('any', 'Any era'), ('decade_2020s', '2020s'), ('decade_2010s', '2010s'), ('decade_2000s', '2000s'), ('decade_1990s', '1990s'), ('decade_1980s', '1980s'), ('decade_1970s', '1970s'), ('decade_1960s', '1960s'), ('decade_1950s', '1950s')] %}
+                    <option value="{{ value }}" {% if filters.year_filter == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </label>
         </div>
 
         <div class="flex flex-wrap gap-2 mt-4">
@@ -70,7 +95,7 @@
             </div>
 
             <div class="p-6 md:p-8 flex flex-col justify-center">
-                <div class="text-[10px] font-semibold uppercase tracking-wider text-emerald-400">DevDB's Pick · {{ 'TMDB Discovery' if pick.source == 'tmdb_discovery' else 'Your Want to Watch List' }}</div>
+                <div class="text-[10px] font-semibold uppercase tracking-wider text-emerald-400">DevDB's Pick · {{ 'TMDB Discovery' if pick.source == 'tmdb_discovery' else ('Buddy Recommendation' if pick.source == 'buddies' else 'Your Want to Watch List') }}</div>
                 <h2 class="text-3xl font-bold text-white mt-2">{{ pick.media.title }}</h2>
 
                 <div class="flex flex-wrap gap-2 mt-3 text-xs text-neutral-400">
@@ -110,6 +135,9 @@
                         <input type="hidden" name="length" value="{{ filters.length }}">
                         <input type="hidden" name="mood" value="{{ filters.mood }}">
                         <input type="hidden" name="source" value="{{ filters.source }}">
+                        <input type="hidden" name="genre" value="{{ filters.genre }}">
+                        <input type="hidden" name="min_rating" value="{{ filters.min_rating }}">
+                        <input type="hidden" name="year_filter" value="{{ filters.year_filter }}">
                         {% if pick.entry %}
                             <input type="hidden" name="exclude" value="{{ pick.entry.id }}">
                         {% else %}
