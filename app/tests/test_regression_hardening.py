@@ -62,7 +62,7 @@ def test_migration_chain_has_one_head():
     }
     heads = set(revisions) - referenced
 
-    assert heads == {"d8e5f0a1b2c3"}
+    assert heads == {"a1b2c3d4e5f6"}
 
 
 def test_financial_migration_is_chained_from_dossier_migration():
