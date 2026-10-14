@@ -12,6 +12,7 @@ def media(**kwargs):
         vote_average=None,
         title="Candidate",
         tmdb_id=1,
+        release_date="2021-01-01",
     )
     defaults.update(kwargs)
     return SimpleNamespace(**defaults)
@@ -268,3 +269,35 @@ def test_discovery_candidates_allow_unknown_runtime_when_length_is_filtered(monk
     )
     assert len(candidates) == 1
     assert candidates[0].media.runtime is None
+
+
+
+def test_genre_rating_and_release_era_filters_are_applied():
+    from app.services.watch_recommendations import _matches_candidate_filters
+
+    candidate = media(
+        genres="Comedy, Drama",
+        vote_average=7.8,
+        release_date="2018-06-12",
+    )
+    assert _matches_candidate_filters(candidate, "Comedy", 7.0, "decade_2010s")
+    assert not _matches_candidate_filters(candidate, "Horror", 7.0, "decade_2010s")
+    assert not _matches_candidate_filters(candidate, "Comedy", 8.0, "decade_2010s")
+    assert not _matches_candidate_filters(candidate, "Comedy", 7.0, "decade_2020s")
+    assert _matches_candidate_filters(candidate, "any", 0, "any")
+
+
+def test_buddy_candidate_includes_recommender_and_note_in_reasons():
+    from app.services.watch_recommendations import WatchCandidate
+
+    candidate = WatchCandidate(
+        media=media(title="Buddy Pick", vote_average=7.2),
+        source="buddies",
+        recommendation_names=["alex"],
+        recommendation_notes=["Great twist ending"],
+    )
+    pick = _score_candidate(candidate, [], set(), "comfort")
+
+    assert any("Recommended by alex" in reason for reason in pick.reasons)
+    assert any("Great twist ending" in reason for reason in pick.reasons)
+    assert pick.source == "buddies"
