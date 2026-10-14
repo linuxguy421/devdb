@@ -350,3 +350,30 @@ def test_tmdb_discovery_blends_popular_and_hidden_gem_pools(monkeypatch):
     ]
     assert calls[1]["min_vote_count"] == 100
 
+
+def test_tmdb_discovery_applies_minimum_vote_count():
+    import asyncio
+
+    from app.services.tmdb import TMDBService
+
+    service = TMDBService()
+    captured = {}
+
+    async def fake_get(endpoint, params=None, ttl=None):
+        captured["endpoint"] = endpoint
+        captured["params"] = params
+        return {"results": []}
+
+    service._get = fake_get
+    asyncio.run(
+        service.discover_titles(
+            media_type="movie",
+            sort_by="vote_average.desc",
+            min_vote_count=100,
+        )
+    )
+
+    assert captured["endpoint"] == "/discover/movie"
+    assert captured["params"]["sort_by"] == "vote_average.desc"
+    assert captured["params"]["vote_count.gte"] == 100
+
