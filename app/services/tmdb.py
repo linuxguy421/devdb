@@ -70,6 +70,7 @@ class TMDBService:
         sort_by: str = "popularity.desc",
         genre_id: Optional[int] = None,
         year_filter: Optional[str] = None,
+        min_vote_count: Optional[int] = None,
     ) -> Dict[str, Any]:
         endpoint = f"/discover/{media_type}"
         params: Dict[str, Any] = {"sort_by": sort_by}
@@ -87,6 +88,9 @@ class TMDBService:
             elif year_filter.isdigit():
                 year_key = "primary_release_year" if media_type == "movie" else "first_air_date_year"
                 params[year_key] = year_filter
+
+        if min_vote_count is not None and min_vote_count > 0:
+            params["vote_count.gte"] = min_vote_count
 
         # Cache discover feeds for 1 hour
         return await self._get(endpoint, params, ttl=3600)
