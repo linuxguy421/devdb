@@ -63,6 +63,35 @@ def _matches_length(media: MediaItem, length: str) -> bool:
     return length == "any" or _runtime_bucket(media) == length
 
 
+def _matches_candidate_filters(
+    media: MediaItem,
+    genre: str = "any",
+    min_rating: float = 0,
+    year_filter: str = "any",
+) -> bool:
+    if genre != "any" and not any(
+        _genre_key(value) == _genre_key(genre) for value in _genres(media)
+    ):
+        return False
+    if (media.vote_average or 0) < min_rating:
+        return False
+    if year_filter == "any":
+        return True
+    release_date = media.release_date or ""
+    if len(release_date) < 4 or not release_date[:4].isdigit():
+        return False
+    year = int(release_date[:4])
+    if year_filter.isdigit():
+        return year == int(year_filter)
+    if year_filter.startswith("decade_"):
+        try:
+            decade = int(year_filter.replace("decade_", "").replace("s", ""))
+        except ValueError:
+            return False
+        return decade <= year <= decade + 9
+    return False
+
+
 def _format_length(media: MediaItem) -> str:
     if media.media_type == "movie":
         if media.runtime:
@@ -524,21 +553,7 @@ async def get_watch_pick(
     candidates = [
         candidate for candidate in unique.values()
         if (exclude_tmdb_id is None or candidate.media.tmdb_id != exclude_tmdb_id)
-        and (genre == "any" or any(_genre_key(g) == _genre_key(genre) for g in _genres(candidate.media)))
-        and ((candidate.media.vote_average or 0) >= min_rating)
-        and (
-            year_filter == "any"
-            or (
-                bool(candidate.media.release_date)
-                and candidate.media.release_date[:4].isdigit()
-                and (
-                    candidate.media.release_date[:4] == year_filter
-                    if year_filter.isdigit()
-                    else year_filter.startswith("decade_")
-                    and int(year_filter.replace("decade_", "").replace("s", "")) <= int(candidate.media.release_date[:4]) <= int(year_filter.replace("decade_", "").replace("s", "")) + 9
-                )
-            )
-        )
+        and _matches_candidate_filters(candidate.media, genre, min_rating, year_filter)
     ]
 
     if not candidates:
