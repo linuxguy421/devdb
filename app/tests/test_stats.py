@@ -58,8 +58,12 @@ async def test_stats_aggregates_watch_data(db_session):
     assert stats["trend"][1]["count"] == 1
     assert stats["genres"][0]["name"] == "Drama"
     assert stats["genres"][0]["count"] == 2
-    assert stats["genre_ratings"][0]["name"] == "Drama"
-    assert stats["genre_ratings"][0]["average"] == 8.0
+    # Genre ratings rank by average score, so the movie-only genre (rated 9)
+    # should precede Drama (average 8 across both watched titles).
+    assert stats["genre_ratings"][0]["name"] == "Science Fiction"
+    assert stats["genre_ratings"][0]["average"] == 9.0
+    drama_rating = next(row for row in stats["genre_ratings"] if row["name"] == "Drama")
+    assert drama_rating["average"] == 8.0
     assert stats["release_years"] == [{"label": "2010s", "count": 1}, {"label": "2020s", "count": 1}]
     assert stats["tv"]["tracked"] == 1
     assert stats["tv"]["completed"] == 1
