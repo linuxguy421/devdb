@@ -24,6 +24,9 @@ async def what_to_watch(
     surprise: bool = Query(False),
     source: str = Query("for_you"),
     exclude_tmdb_id: Optional[int] = Query(None),
+    genre: str = Query("any"),
+    min_rating: float = Query(0, ge=0, le=10),
+    year_filter: str = Query("any"),
     db: AsyncSession = Depends(get_db),
     current_user: Optional[User] = Depends(get_current_user),
 ):
@@ -33,7 +36,12 @@ async def what_to_watch(
     media_type = media_type if media_type in {"all", "movie", "tv"} else "all"
     length = length if length in {"any", "short", "normal", "long"} else "any"
     mood = mood if mood in {"comfort", "new"} else "comfort"
-    source = source if source in {"for_you", "my_list", "discover"} else "for_you"
+    source = source if source in {"for_you", "my_list", "discover", "buddies"} else "for_you"
+    allowed_genres = {"any", "Action", "Adventure", "Animation", "Comedy", "Crime", "Documentary", "Drama", "Family", "Fantasy", "History", "Horror", "Mystery", "Romance", "Science Fiction", "Thriller", "Western", "Action & Adventure", "Kids", "Sci-Fi & Fantasy"}
+    genre = genre if genre in allowed_genres else "any"
+    allowed_years = {"any", "decade_2020s", "decade_2010s", "decade_2000s", "decade_1990s", "decade_1980s", "decade_1970s", "decade_1960s", "decade_1950s"}
+    year_filter = year_filter if year_filter in allowed_years else "any"
+    min_rating = min(max(min_rating, 0), 10)
 
     pick = await get_watch_pick(
         db,
@@ -45,6 +53,9 @@ async def what_to_watch(
         surprise=surprise,
         source=source,
         exclude_tmdb_id=exclude_tmdb_id,
+        genre=genre,
+        min_rating=min_rating,
+        year_filter=year_filter,
     )
 
     return templates.TemplateResponse(
@@ -60,6 +71,9 @@ async def what_to_watch(
                 "length": length,
                 "mood": mood,
                 "source": source,
+                "genre": genre,
+                "min_rating": min_rating,
+                "year_filter": year_filter,
             },
         },
     )
