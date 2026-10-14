@@ -239,6 +239,9 @@ class WantToWatchSource(CandidateSource):
         media_type: str = "all",
         length: str = "any",
         exclude_entry_id: Optional[int] = None,
+        genre: str = "any",
+        min_rating: float = 0,
+        year_filter: str = "any",
     ) -> list[WatchCandidate]:
         from sqlalchemy import select
         from sqlalchemy.orm import selectinload
@@ -277,6 +280,20 @@ class TMDBDiscoverySource(CandidateSource):
 
     # TMDB genre IDs are stable identifiers. Keep labels normalized to the
     # comma-separated format used by MediaItem and the ranking profile.
+    GENRE_IDS = {
+        "movie": {
+            "Action": 28, "Adventure": 12, "Animation": 16, "Comedy": 35,
+            "Crime": 80, "Documentary": 99, "Drama": 18, "Family": 10751,
+            "Fantasy": 14, "History": 36, "Horror": 27, "Mystery": 9648,
+            "Romance": 10749, "Science Fiction": 878, "Thriller": 53, "Western": 37,
+        },
+        "tv": {
+            "Action & Adventure": 10759, "Animation": 16, "Comedy": 35,
+            "Crime": 80, "Documentary": 99, "Drama": 18, "Family": 10751,
+            "Kids": 10762, "Mystery": 9648, "Sci-Fi & Fantasy": 10765,
+        },
+    }
+
     GENRES = {
         "movie": {
             28: "Action", 12: "Adventure", 16: "Animation", 35: "Comedy",
@@ -301,6 +318,9 @@ class TMDBDiscoverySource(CandidateSource):
         media_type: str = "all",
         length: str = "any",
         exclude_entry_id: Optional[int] = None,
+        genre: str = "any",
+        min_rating: float = 0,
+        year_filter: str = "any",
     ) -> list[WatchCandidate]:
         from sqlalchemy import select
         from app.services.tmdb import tmdb_service
@@ -324,6 +344,8 @@ class TMDBDiscoverySource(CandidateSource):
                 payload = await tmdb_service.discover_titles(
                     media_type=kind,
                     sort_by="popularity.desc",
+                    genre_id=self.GENRE_IDS.get(kind, {}).get(genre),
+                    year_filter=year_filter if year_filter != "any" else None,
                 )
             except Exception:
                 # A transient TMDB failure should not take down the blended
@@ -358,6 +380,8 @@ class TMDBDiscoverySource(CandidateSource):
                     total_seasons=None,
                     total_episodes=raw.get("number_of_episodes"),
                 )
+                if min_rating and (media.vote_average or 0) < min_rating:
+                    continue
                 if length != "any" and _runtime_bucket(media) != "unknown" and not _matches_length(media, length):
                     continue
                 candidates.append(
@@ -379,6 +403,9 @@ class BuddyRecommendationSource(CandidateSource):
         media_type: str = "all",
         length: str = "any",
         exclude_entry_id: Optional[int] = None,
+        genre: str = "any",
+        min_rating: float = 0,
+        year_filter: str = "any",
     ) -> list[WatchCandidate]:
         from sqlalchemy import and_, or_, select
         from app.services.tmdb import tmdb_service
@@ -480,6 +507,9 @@ async def get_watch_pick(
                 media_type=media_type,
                 length=length,
                 exclude_entry_id=exclude_entry_id,
+                genre=genre,
+                min_rating=min_rating,
+                year_filter=year_filter,
             )
         )
 
