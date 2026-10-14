@@ -634,18 +634,27 @@ async def get_watch_pick(
     if surprise and len(picks) > 1:
         # Surprise mode exposes a short ranked shortlist. Keep it from being
         # dominated by popularity results when a qualifying hidden gem exists.
-        shortlist = picks[: min(5, len(picks))]
-        if source == "discover" and not any(
-            pick.discovery_pool == "hidden_gem" for pick in shortlist
-        ):
-            hidden_gem = next(
-                (pick for pick in picks if pick.discovery_pool == "hidden_gem"),
-                None,
-            )
-            if hidden_gem is not None:
-                shortlist[-1] = hidden_gem
+        shortlist = (
+            _discovery_shortlist(picks, limit=5)
+            if source == "discover"
+            else picks[: min(5, len(picks))]
+        )
         return random.choice(shortlist)
     return picks[0]
+
+
+def _discovery_shortlist(picks: list[WatchPick], limit: int = 5) -> list[WatchPick]:
+    """Keep a qualifying hidden gem in the ranked surprise shortlist."""
+    shortlist = picks[:limit]
+    if not shortlist or any(pick.discovery_pool == "hidden_gem" for pick in shortlist):
+        return shortlist
+    hidden_gem = next(
+        (pick for pick in picks[limit:] if pick.discovery_pool == "hidden_gem"),
+        None,
+    )
+    if hidden_gem is not None:
+        shortlist[-1] = hidden_gem
+    return shortlist
 
 
 def pick_length_label(media: MediaItem) -> str:
