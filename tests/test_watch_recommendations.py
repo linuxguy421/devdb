@@ -301,3 +301,113 @@ def test_buddy_candidate_includes_recommender_and_note_in_reasons():
     assert any("Recommended by alex" in reason for reason in pick.reasons)
     assert any("Great twist ending" in reason for reason in pick.reasons)
     assert pick.source == "buddies"
+
+
+def test_tmdb_discovery_blends_popular_and_hidden_gem_pools(monkeypatch):
+    import asyncio
+
+    from app.services import tmdb
+    from app.services.watch_recommendations import TMDBDiscoverySource
+
+    calls = []
+
+    async def fake_discover_titles(**kwargs):
+        calls.append(kwargs)
+        if kwargs["sort_by"] == "popularity.desc":
+            return {"results": [
+                {"id": 1, "title": "Popular", "genre_ids": [18], "vote_average": 7.4},
+                {"id": 2, "title": "Overlap", "genre_ids": [18], "vote_average": 8.1},
+            ]}
+        return {"results": [
+            {"id": 2, "title": "Overlap", "genre_ids": [18], "vote_average": 8.1},
+            {"id": 3, "title": "Hidden Gem", "genre_ids": [18], "vote_average": 8.7},
+        ]}
+
+    class Result:
+        def all(self):
+            return []
+
+    class FakeDB:
+        async def execute(self, statement):
+            return Result()
+
+    monkeypatch.setattr(tmdb.tmdb_service, "discover_titles", fake_discover_titles)
+    candidates = asyncio.run(
+        TMDBDiscoverySource().fetch(
+            FakeDB(),
+            user_id=1,
+            media_type="movie",
+            length="any",
+            exclude_entry_id=None,
+        )
+    )
+
+    assert [candidate.media.title for candidate in candidates] == [
+        "Popular", "Overlap", "Hidden Gem"
+    ]
+    assert [call["sort_by"] for call in calls] == [
+        "popularity.desc", "vote_average.desc"
+    ]
+    assert calls[1]["min_vote_count"] == 100
+
+
+def test_tmdb_discovery_applies_minimum_vote_count():
+    import asyncio
+
+    from app.services.tmdb import TMDBService
+
+    service = TMDBService()
+    captured = {}
+
+    async def fake_get(endpoint, params=None, ttl=None):
+        captured["endpoint"] = endpoint
+        captured["params"] = params
+        return {"results": []}
+
+    service._get = fake_get
+    asyncio.run(
+        service.discover_titles(
+            media_type="movie",
+            sort_by="vote_average.desc",
+            min_vote_count=100,
+        )
+    )
+
+    assert captured["endpoint"] == "/discover/movie"
+    assert captured["params"]["sort_by"] == "vote_average.desc"
+    assert captured["params"]["vote_count.gte"] == 100
+
+
+
+def test_discovery_shortlist_keeps_hidden_gem_among_top_five():
+    from app.services.watch_recommendations import WatchPick, _discovery_shortlist
+
+    picks = [
+        WatchPick(None, media(title=f"Popular {i}"), 10 - i, [], source="tmdb_discovery", discovery_pool="popular")
+        for i in range(6)
+    ]
+    hidden_gem = WatchPick(
+        None,
+        media(title="Hidden Gem", vote_average=8.8),
+        3.0,
+        [],
+        source="tmdb_discovery",
+        discovery_pool="hidden_gem",
+    )
+    picks.append(hidden_gem)
+
+    shortlist = _discovery_shortlist(picks, limit=5)
+
+    assert len(shortlist) == 5
+    assert hidden_gem in shortlist
+    assert shortlist[0].media.title == "Popular 0"
+
+
+def test_discovery_shortlist_does_not_replace_existing_hidden_gem():
+    from app.services.watch_recommendations import WatchPick, _discovery_shortlist
+
+    popular = WatchPick(None, media(title="Popular"), 10, [], discovery_pool="popular")
+    hidden_gem = WatchPick(None, media(title="Hidden Gem"), 9, [], discovery_pool="hidden_gem")
+    shortlist = _discovery_shortlist([popular, hidden_gem], limit=5)
+
+    assert shortlist == [popular, hidden_gem]
