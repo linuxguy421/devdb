@@ -74,7 +74,7 @@
         </div>
     </div>
     <!-- Mobile primary navigation: keep core destinations available below the desktop breakpoint. -->
-    <div aria-label="Primary navigation" class="md:hidden grid grid-cols-4 gap-1 max-w-7xl mx-auto px-0 pt-2">
+    <div role="navigation" aria-label="Mobile primary navigation" class="md:hidden grid grid-cols-4 gap-1 max-w-7xl mx-auto px-0 pt-2">
         <a href="/"
            {% if request.url.path == '/' or request.url.path.startswith('/titles') %}aria-current="page"{% endif %}
            class="min-h-11 flex items-center justify-center text-center text-[11px] leading-tight px-1 py-2 rounded-lg {% if request.url.path == '/' or request.url.path.startswith('/titles') %}bg-neutral-800 text-emerald-300{% else %}text-neutral-400 hover:bg-neutral-800/70 hover:text-white{% endif %}">
