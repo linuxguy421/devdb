@@ -15,8 +15,9 @@ from app.config import settings
 # Public URL prefix mounted in main.py
 AVATAR_URL_PREFIX = "/media/avatars"
 
-# Opaque on-disk names only (no user id in the path)
-_SAFE_NAME = re.compile(r"^[a-zA-Z0-9_-]{16,64}\.webp$")
+# New uploads: opaque names. Legacy: {user_id}.webp from first implementation.
+_OPAQUE_NAME = re.compile(r"^[a-zA-Z0-9_-]{16,64}\.webp$")
+_LEGACY_NAME = re.compile(r"^[0-9]+\.webp$")
 
 ALLOWED_CONTENT_TYPES = {
     "image/jpeg",
@@ -37,13 +38,21 @@ def ensure_avatar_dir() -> Path:
     return path
 
 
+def _is_safe_avatar_filename(name: str) -> bool:
+    return bool(_OPAQUE_NAME.match(name) or _LEGACY_NAME.match(name))
+
+
 def is_local_avatar_url(url: str | None) -> bool:
+    """True for server-stored avatars (opaque or legacy user_id.webp)."""
     if not url:
         return False
     if not url.startswith(f"{AVATAR_URL_PREFIX}/"):
         return False
     name = url[len(AVATAR_URL_PREFIX) + 1 :]
-    return bool(_SAFE_NAME.match(name))
+    # Reject path traversal or nested paths
+    if "/" in name or "\\" in name or name in (".", ".."):
+        return False
+    return _is_safe_avatar_filename(name)
 
 
 def _filename_from_url(url: str) -> str | None:
@@ -58,11 +67,10 @@ def delete_local_avatar_by_url(url: str | None) -> None:
     if not name:
         return
     path = settings.avatar_dir_path / name
-    # Resolve and ensure still under avatar dir (defense in depth)
     try:
         resolved = path.resolve()
         base = settings.avatar_dir_path.resolve()
-        if base not in resolved.parents and resolved != base:
+        if base not in resolved.parents and resolved.parent != base:
             return
     except OSError:
         return
@@ -106,8 +114,7 @@ async def save_avatar_upload(upload: UploadFile, *, replace_url: str | None = No
 
     ensure_avatar_dir()
     filename = _new_opaque_filename()
-    # Ensure regex acceptance (token_urlsafe can include - and _)
-    while not _SAFE_NAME.match(filename):
+    while not _OPAQUE_NAME.match(filename):
         filename = _new_opaque_filename()
 
     dest = settings.avatar_dir_path / filename
@@ -120,7 +127,6 @@ async def save_avatar_upload(upload: UploadFile, *, replace_url: str | None = No
             tmp.unlink(missing_ok=True)
         raise AvatarError("Could not save avatar to disk.") from exc
 
-    # Drop previous local file after successful write
     if replace_url and is_local_avatar_url(replace_url):
         old_name = _filename_from_url(replace_url)
         if old_name and old_name != filename:
