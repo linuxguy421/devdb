@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import io
+import re
+import secrets
 from pathlib import Path
 
 from fastapi import UploadFile
@@ -12,6 +14,9 @@ from app.config import settings
 
 # Public URL prefix mounted in main.py
 AVATAR_URL_PREFIX = "/media/avatars"
+
+# Opaque on-disk names only (no user id in the path)
+_SAFE_NAME = re.compile(r"^[a-zA-Z0-9_-]{16,64}\.webp$")
 
 ALLOWED_CONTENT_TYPES = {
     "image/jpeg",
@@ -32,32 +37,45 @@ def ensure_avatar_dir() -> Path:
     return path
 
 
-def avatar_filename(user_id: int) -> str:
-    return f"{user_id}.webp"
-
-
-def avatar_disk_path(user_id: int) -> Path:
-    return settings.avatar_dir_path / avatar_filename(user_id)
-
-
-def avatar_public_url(user_id: int) -> str:
-    return f"{AVATAR_URL_PREFIX}/{avatar_filename(user_id)}"
-
-
 def is_local_avatar_url(url: str | None) -> bool:
     if not url:
         return False
-    return url.startswith(f"{AVATAR_URL_PREFIX}/")
+    if not url.startswith(f"{AVATAR_URL_PREFIX}/"):
+        return False
+    name = url[len(AVATAR_URL_PREFIX) + 1 :]
+    return bool(_SAFE_NAME.match(name))
 
 
-def delete_local_avatar(user_id: int) -> None:
-    path = avatar_disk_path(user_id)
+def _filename_from_url(url: str) -> str | None:
+    if not is_local_avatar_url(url):
+        return None
+    return url[len(AVATAR_URL_PREFIX) + 1 :]
+
+
+def delete_local_avatar_by_url(url: str | None) -> None:
+    """Remove file for a stored local avatar URL. No-op if not local/safe."""
+    name = _filename_from_url(url) if url else None
+    if not name:
+        return
+    path = settings.avatar_dir_path / name
+    # Resolve and ensure still under avatar dir (defense in depth)
+    try:
+        resolved = path.resolve()
+        base = settings.avatar_dir_path.resolve()
+        if base not in resolved.parents and resolved != base:
+            return
+    except OSError:
+        return
     if path.is_file():
         path.unlink()
 
 
-async def save_avatar_upload(user_id: int, upload: UploadFile) -> str:
-    """Validate and store upload; return public URL path."""
+def _new_opaque_filename() -> str:
+    return f"{secrets.token_urlsafe(24)}.webp"
+
+
+async def save_avatar_upload(upload: UploadFile, *, replace_url: str | None = None) -> str:
+    """Validate and store upload; return public URL path with opaque filename."""
     content_type = (upload.content_type or "").lower().strip()
     if content_type not in ALLOWED_CONTENT_TYPES:
         raise AvatarError("Avatar must be a JPEG, PNG, WebP, or GIF image.")
@@ -75,7 +93,6 @@ async def save_avatar_upload(user_id: int, upload: UploadFile) -> str:
     except UnidentifiedImageError as exc:
         raise AvatarError("Could not read image file.") from exc
 
-    # Normalize to RGB (drop alpha for consistent WebP)
     if image.mode in ("RGBA", "LA", "P"):
         rgba = image.convert("RGBA")
         background = Image.new("RGB", rgba.size, (23, 23, 23))
@@ -88,8 +105,12 @@ async def save_avatar_upload(user_id: int, upload: UploadFile) -> str:
     image.thumbnail((max_edge, max_edge), Image.Resampling.LANCZOS)
 
     ensure_avatar_dir()
-    dest = avatar_disk_path(user_id)
-    # Write to temp then replace for atomicity
+    filename = _new_opaque_filename()
+    # Ensure regex acceptance (token_urlsafe can include - and _)
+    while not _SAFE_NAME.match(filename):
+        filename = _new_opaque_filename()
+
+    dest = settings.avatar_dir_path / filename
     tmp = dest.with_suffix(".tmp.webp")
     try:
         image.save(tmp, format="WEBP", quality=85, method=4)
@@ -99,4 +120,10 @@ async def save_avatar_upload(user_id: int, upload: UploadFile) -> str:
             tmp.unlink(missing_ok=True)
         raise AvatarError("Could not save avatar to disk.") from exc
 
-    return avatar_public_url(user_id)
+    # Drop previous local file after successful write
+    if replace_url and is_local_avatar_url(replace_url):
+        old_name = _filename_from_url(replace_url)
+        if old_name and old_name != filename:
+            delete_local_avatar_by_url(replace_url)
+
+    return f"{AVATAR_URL_PREFIX}/{filename}"

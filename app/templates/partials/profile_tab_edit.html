@@ -12,7 +12,11 @@
             {% endif %}
             <div class="min-w-0 flex-1">
                 <p class="text-xs font-bold text-neutral-400 uppercase tracking-wider">Avatar</p>
+                {% if avatar_is_local %}
+                <p class="text-xs text-emerald-400/90 mt-1">Stored on this server</p>
+                {% else %}
                 <p class="text-xs text-neutral-500 mt-1">Upload a file (stored on this server) or paste an image URL.</p>
+                {% endif %}
             </div>
         </div>
 
@@ -60,10 +64,19 @@
         </div>
 
         <div>
-            <label class="block text-xs font-bold text-neutral-400 uppercase tracking-wider mb-2">Avatar image URL (optional)</label>
-            <input type="url" name="avatar_url" value="{{ current_user.avatar_url or '' }}" placeholder="https://example.com/avatar.jpg"
+            <label class="block text-xs font-bold text-neutral-400 uppercase tracking-wider mb-2">External avatar URL (optional)</label>
+            {# Local paths are never shown or accepted in this field #}
+            <input type="url" name="avatar_url"
+                   value="{% if avatar_is_local %}{% else %}{{ current_user.avatar_url or '' }}{% endif %}"
+                   placeholder="https://example.com/avatar.jpg"
                    class="w-full bg-neutral-800 border border-neutral-700/80 rounded-xl px-4 py-2.5 text-sm text-white focus:border-emerald-500 outline-none transition">
-            <p class="text-[11px] text-neutral-600 mt-1.5">Leave blank to clear. Uploading a file overrides this with a local path.</p>
+            <p class="text-[11px] text-neutral-600 mt-1.5">
+                {% if avatar_is_local %}
+                You currently use a server-stored image. Paste an external URL to switch, or use Remove avatar above.
+                {% else %}
+                Optional remote image. Leave blank to clear an external URL. Use Upload for a local file.
+                {% endif %}
+            </p>
         </div>
 
         <div>

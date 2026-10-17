@@ -12,8 +12,9 @@ from app.security import require_csrf
 from app.models import Friendship, RecoveryCode, User, WatchEntry
 from app.routers.auth import get_current_user_optional as get_current_user
 from app.services.avatars import (
+    AVATAR_URL_PREFIX,
     AvatarError,
-    delete_local_avatar,
+    delete_local_avatar_by_url,
     is_local_avatar_url,
     save_avatar_upload,
 )
@@ -37,7 +38,12 @@ async def get_profile_modal(
     return templates.TemplateResponse(
         request=request,
         name="partials/profile_modal.html",
-        context={"request": request, "current_user": current_user, "active_tab": tab},
+        context={
+            "request": request,
+            "current_user": current_user,
+            "active_tab": tab,
+            "avatar_is_local": is_local_avatar_url(current_user.avatar_url),
+        },
     )
 
 
@@ -51,7 +57,12 @@ async def get_profile_tab(
     if not current_user:
         return HTMLResponse(status_code=401)
 
-    context = {"request": request, "current_user": current_user, "active_tab": tab_name}
+    context = {
+        "request": request,
+        "current_user": current_user,
+        "active_tab": tab_name,
+        "avatar_is_local": is_local_avatar_url(current_user.avatar_url),
+    }
 
     if tab_name == "buddies":
         stmt_pending = (
@@ -127,14 +138,26 @@ async def update_profile(
         return HTMLResponse(status_code=401)
 
     current_user.username = username.strip()
-    new_url = avatar_url.strip() if avatar_url else None
+    new_url = (avatar_url or "").strip() or None
 
-    # Switching away from a local file (or clearing) removes the stored image
-    if is_local_avatar_url(current_user.avatar_url):
-        if not new_url or not is_local_avatar_url(new_url):
-            delete_local_avatar(current_user.id)
+    # Never accept client-supplied local media paths (those are server-assigned only)
+    if new_url and new_url.startswith(AVATAR_URL_PREFIX):
+        new_url = None
 
-    current_user.avatar_url = new_url
+    previous = current_user.avatar_url
+
+    if new_url:
+        # External URL replaces local file
+        if is_local_avatar_url(previous):
+            delete_local_avatar_by_url(previous)
+        current_user.avatar_url = new_url
+    else:
+        # Empty URL field: keep existing local avatar; clear only external URLs
+        if is_local_avatar_url(previous):
+            pass  # retain local path; use Remove avatar to clear
+        else:
+            current_user.avatar_url = None
+
     current_user.bio = bio.strip() if bio else None
     await db.commit()
 
@@ -154,7 +177,10 @@ async def upload_avatar(
         return HTMLResponse(status_code=401)
 
     try:
-        public_url = await save_avatar_upload(current_user.id, avatar)
+        public_url = await save_avatar_upload(
+            avatar,
+            replace_url=current_user.avatar_url,
+        )
     except AvatarError as exc:
         return HTMLResponse(
             f"<div class='p-3 rounded-xl bg-red-950/40 border border-red-800/60 text-red-300 text-xs font-semibold'>{exc}</div>",
@@ -179,7 +205,7 @@ async def remove_avatar(
         return HTMLResponse(status_code=401)
 
     if is_local_avatar_url(current_user.avatar_url):
-        delete_local_avatar(current_user.id)
+        delete_local_avatar_by_url(current_user.avatar_url)
 
     current_user.avatar_url = None
     await db.commit()
