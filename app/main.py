@@ -8,7 +8,7 @@ from app.middleware import SecurityMiddleware
 
 from app.config import settings
 from app.database import AsyncSessionLocal
-from app.routers import auth, pages, titles, users, watch_entries, buddies, profile, what_to_watch
+from app.routers import auth, pages, titles, users, watch_entries, buddies, profile, what_to_watch, admin
 
 
 app = FastAPI(
@@ -60,3 +60,4 @@ app.include_router(pages.router)
 app.include_router(buddies.router)
 app.include_router(profile.router)
 app.include_router(what_to_watch.router)
+app.include_router(admin.router)
