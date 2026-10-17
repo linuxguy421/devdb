@@ -90,7 +90,10 @@ async def get_current_user_optional(
 
     stmt = select(User).where(User.username == username)
     res = await db.execute(stmt)
-    return res.scalar_one_or_none()
+    user = res.scalar_one_or_none()
+    if user is not None and not user.is_active:
+        return None
+    return user
 
 
 async def get_current_user(
@@ -100,6 +103,22 @@ async def get_current_user(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Authentication required",
+        )
+    if not current_user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Account disabled",
+        )
+    return current_user
+
+
+async def require_admin(
+    current_user: User = Depends(get_current_user),
+) -> User:
+    if not current_user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Administrator access required",
         )
     return current_user
 
@@ -163,6 +182,26 @@ async def login_post(
             },
             status_code=status.HTTP_400_BAD_REQUEST,
         )
+
+    if not user.is_active:
+        return templates.TemplateResponse(
+            request=request,
+            name="login.html",
+            context={
+                "error": "This account has been disabled. Contact an administrator.",
+                "username": username,
+            },
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+
+    # Promote configured bootstrap admins on successful login
+    if (
+        user.username.casefold() in settings.admin_username_set
+        and not user.is_admin
+    ):
+        user.is_admin = True
+        await db.commit()
+        await db.refresh(user)
 
     access_token = create_access_token(data={"sub": user.username})
     response = RedirectResponse(url="/", status_code=status.HTTP_303_SEE_OTHER)
