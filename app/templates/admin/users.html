@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+
+{% block title %}Users · Admin · DevDB{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+        <div>
+            <p class="text-[11px] font-semibold uppercase tracking-wider text-emerald-400">
+                <a href="/admin" class="hover:text-emerald-300">Administrator</a>
+            </p>
+            <h1 class="text-3xl font-bold tracking-tight text-white mt-1">Users</h1>
+            <p class="text-sm text-neutral-400 mt-1">Search accounts and enable or disable access.</p>
+        </div>
+    </div>
+
+    {% if message %}
+    <div class="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">{{ message }}</div>
+    {% endif %}
+    {% if error %}
+    <div class="rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-300">{{ error }}</div>
+    {% endif %}
+
+    <form method="get" action="/admin/users" class="rounded-2xl border border-neutral-800 bg-neutral-900/60 p-4 flex flex-col sm:flex-row gap-3 sm:items-end">
+        <label class="flex-1">
+            <span class="block text-[11px] font-semibold uppercase tracking-wider text-neutral-500 mb-1.5">Search</span>
+            <input type="search" name="q" value="{{ search_query }}"
+                   placeholder="Username or email…"
+                   class="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-white placeholder:text-neutral-600 focus:border-emerald-500/50 focus:outline-none">
+        </label>
+        <label>
+            <span class="block text-[11px] font-semibold uppercase tracking-wider text-neutral-500 mb-1.5">Status</span>
+            <select name="status"
+                    class="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-white focus:border-emerald-500/50 focus:outline-none">
+                <option value="all" {% if status_filter == 'all' %}selected{% endif %}>All</option>
+                <option value="active" {% if status_filter == 'active' %}selected{% endif %}>Active</option>
+                <option value="disabled" {% if status_filter == 'disabled' %}selected{% endif %}>Disabled</option>
+                <option value="admin" {% if status_filter == 'admin' %}selected{% endif %}>Admins</option>
+            </select>
+        </label>
+        <button type="submit"
+                class="rounded-xl bg-emerald-500 px-4 py-2 text-sm font-semibold text-neutral-950 hover:bg-emerald-400 transition">
+            Apply
+        </button>
+    </form>
+
+    <div class="rounded-2xl border border-neutral-800 bg-neutral-900/60 overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm text-left">
+                <thead class="text-[11px] uppercase tracking-wider text-neutral-500 border-b border-neutral-800 bg-neutral-950/50">
+                    <tr>
+                        <th class="px-4 py-3 font-semibold">User</th>
+                        <th class="px-4 py-3 font-semibold hidden sm:table-cell">Email</th>
+                        <th class="px-4 py-3 font-semibold">Entries</th>
+                        <th class="px-4 py-3 font-semibold">Status</th>
+                        <th class="px-4 py-3 font-semibold hidden md:table-cell">Joined</th>
+                        <th class="px-4 py-3 font-semibold text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-neutral-800/80">
+                    {% for user in users %}
+                    <tr class="hover:bg-neutral-900/80">
+                        <td class="px-4 py-3">
+                            <div class="font-medium text-neutral-100">{{ user.username }}</div>
+                            {% if user.is_admin %}
+                            <span class="text-[10px] uppercase tracking-wider text-violet-400 font-semibold">admin</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-3 text-neutral-400 hidden sm:table-cell truncate max-w-[12rem]">{{ user.email }}</td>
+                        <td class="px-4 py-3 text-neutral-300 tabular-nums">{{ entry_counts.get(user.id, 0) }}</td>
+                        <td class="px-4 py-3">
+                            {% if user.is_active %}
+                            <span class="inline-flex items-center rounded-full bg-emerald-500/15 text-emerald-400 px-2 py-0.5 text-[11px] font-semibold">Active</span>
+                            {% else %}
+                            <span class="inline-flex items-center rounded-full bg-rose-500/15 text-rose-400 px-2 py-0.5 text-[11px] font-semibold">Disabled</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-3 text-neutral-500 hidden md:table-cell text-xs">
+                            {% if user.created_at %}{{ user.created_at.strftime('%Y-%m-%d') }}{% else %}—{% endif %}
+                        </td>
+                        <td class="px-4 py-3 text-right">
+                            {% if user.id == current_user.id %}
+                            <span class="text-xs text-neutral-600">You</span>
+                            {% else %}
+                            <form method="post" action="/admin/users/{{ user.id }}/toggle-active" class="inline"
+                                  onsubmit="return confirm('{% if user.is_active %}Disable{% else %}Enable{% endif %} {{ user.username }}?');">
+                                <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+                                <button type="submit"
+                                        class="text-xs font-semibold rounded-lg px-2.5 py-1.5 border transition
+                                        {% if user.is_active %}border-rose-500/40 text-rose-400 hover:bg-rose-500/10{% else %}border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10{% endif %}">
+                                    {% if user.is_active %}Disable{% else %}Enable{% endif %}
+                                </button>
+                            </form>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="6" class="px-4 py-10 text-center text-neutral-500">No users match these filters.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
