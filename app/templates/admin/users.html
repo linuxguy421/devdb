@@ -8,9 +8,11 @@
         <div>
             <p class="text-[11px] font-semibold uppercase tracking-wider text-emerald-400">
                 <a href="/admin" class="hover:text-emerald-300">Administrator</a>
+                <span class="text-neutral-600 mx-1">/</span>
+                <a href="/admin/audit" class="text-neutral-500 hover:text-emerald-300">Audit</a>
             </p>
             <h1 class="text-3xl font-bold tracking-tight text-white mt-1">Users</h1>
-            <p class="text-sm text-neutral-400 mt-1">Search accounts and enable or disable access.</p>
+            <p class="text-sm text-neutral-400 mt-1">Enable or disable access, and promote or demote administrators.</p>
         </div>
     </div>
 
@@ -82,15 +84,25 @@
                             {% if user.id == current_user.id %}
                             <span class="text-xs text-neutral-600">You</span>
                             {% else %}
-                            <form method="post" action="/admin/users/{{ user.id }}/toggle-active" class="inline"
-                                  onsubmit="return confirm('{% if user.is_active %}Disable{% else %}Enable{% endif %} {{ user.username }}?');">
-                                <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
-                                <button type="submit"
-                                        class="text-xs font-semibold rounded-lg px-2.5 py-1.5 border transition
-                                        {% if user.is_active %}border-rose-500/40 text-rose-400 hover:bg-rose-500/10{% else %}border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10{% endif %}">
-                                    {% if user.is_active %}Disable{% else %}Enable{% endif %}
-                                </button>
-                            </form>
+                            <div class="inline-flex flex-wrap items-center justify-end gap-1.5">
+                                <form method="post" action="/admin/users/{{ user.id }}/toggle-active" class="inline"
+                                      onsubmit="return confirm('{% if user.is_active %}Disable{% else %}Enable{% endif %} {{ user.username }}?');">
+                                    <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+                                    <button type="submit"
+                                            class="text-xs font-semibold rounded-lg px-2.5 py-1.5 border transition
+                                            {% if user.is_active %}border-rose-500/40 text-rose-400 hover:bg-rose-500/10{% else %}border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10{% endif %}">
+                                        {% if user.is_active %}Disable{% else %}Enable{% endif %}
+                                    </button>
+                                </form>
+                                <form method="post" action="/admin/users/{{ user.id }}/toggle-admin" class="inline"
+                                      onsubmit="return confirm('{% if user.is_admin %}Remove admin from{% else %}Promote{% endif %} {{ user.username }}?');">
+                                    <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+                                    <button type="submit"
+                                            class="text-xs font-semibold rounded-lg px-2.5 py-1.5 border border-violet-500/40 text-violet-300 hover:bg-violet-500/10 transition">
+                                        {% if user.is_admin %}Demote{% else %}Promote{% endif %}
+                                    </button>
+                                </form>
+                            </div>
                             {% endif %}
                         </td>
                     </tr>
