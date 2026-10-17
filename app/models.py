@@ -60,7 +60,8 @@ class User(Base):
     avatar_url = Column(String, nullable=True)
     bio = Column(Text, nullable=True)
 
-    is_active = Column(Boolean, default=True)
+    is_active = Column(Boolean, default=True, server_default="true")
+    is_admin = Column(Boolean, default=False, server_default="false", nullable=False)
 
     created_at = Column(
         DateTime(timezone=True),
