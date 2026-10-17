@@ -194,11 +194,12 @@ async def login_post(
             status_code=status.HTTP_400_BAD_REQUEST,
         )
 
-    # Promote configured bootstrap admins on successful login
-    if (
+    # Promote configured bootstrap admins and SUPER_ADMIN on successful login
+    should_promote = (
         user.username.casefold() in settings.admin_username_set
-        and not user.is_admin
-    ):
+        or settings.is_super_admin(user.username)
+    )
+    if should_promote and not user.is_admin:
         user.is_admin = True
         await db.commit()
         await db.refresh(user)

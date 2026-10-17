@@ -163,6 +163,7 @@ async def admin_users(
             "message": request.query_params.get("message"),
             "error": request.query_params.get("error"),
             "admin_count": admin_count,
+            "is_super_admin": settings.is_super_admin,
         },
     )
 
@@ -211,6 +212,11 @@ async def toggle_user_admin(
     target = result.scalar_one_or_none()
     if not target:
         return _redirect_users(error="User not found.")
+
+    if settings.is_super_admin(target.username):
+        return _redirect_users(
+            error="Cannot demote the super admin (SUPER_ADMIN)."
+        )
 
     if target.is_admin:
         admin_count = (

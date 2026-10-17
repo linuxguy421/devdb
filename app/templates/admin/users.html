@@ -61,10 +61,13 @@
                 </thead>
                 <tbody class="divide-y divide-neutral-800/80">
                     {% for user in users %}
+                    {% set user_is_super = is_super_admin(user.username) %}
                     <tr class="hover:bg-neutral-900/80">
                         <td class="px-4 py-3">
                             <div class="font-medium text-neutral-100">{{ user.username }}</div>
-                            {% if user.is_admin %}
+                            {% if user_is_super %}
+                            <span class="text-[10px] uppercase tracking-wider text-amber-400 font-semibold">super</span>
+                            {% elif user.is_admin %}
                             <span class="text-[10px] uppercase tracking-wider text-violet-400 font-semibold">admin</span>
                             {% endif %}
                         </td>
@@ -94,6 +97,7 @@
                                         {% if user.is_active %}Disable{% else %}Enable{% endif %}
                                     </button>
                                 </form>
+                                {% if not user_is_super %}
                                 <form method="post" action="/admin/users/{{ user.id }}/toggle-admin" class="inline"
                                       onsubmit="return confirm('{% if user.is_admin %}Remove admin from{% else %}Promote{% endif %} {{ user.username }}?');">
                                     <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
@@ -102,6 +106,9 @@
                                         {% if user.is_admin %}Demote{% else %}Promote{% endif %}
                                     </button>
                                 </form>
+                                {% else %}
+                                <span class="text-[10px] uppercase tracking-wider text-amber-500/80 font-semibold px-1">locked</span>
+                                {% endif %}
                             </div>
                             {% endif %}
                         </td>
