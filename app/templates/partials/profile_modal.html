@@ -17,7 +17,7 @@
                         <p class="text-xs text-neutral-400 font-medium">Account & Preference Center</p>
                     </div>
                 </div>
-                <button onclick="document.getElementById('profile-modal').remove()" class="text-neutral-400 hover:text-white p-2 rounded-xl hover:bg-neutral-800 transition cursor-pointer">
+                <button type="button" onclick="document.getElementById('profile-modal').remove()" class="text-neutral-400 hover:text-white p-2 rounded-xl hover:bg-neutral-800 transition cursor-pointer">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
                     </svg>
@@ -26,26 +26,34 @@
 
             <!-- Tab Buttons -->
             <div class="flex space-x-6 text-sm font-semibold overflow-x-auto">
-                <button hx-get="/profile/tab/edit"
+                <button type="button"
+                        hx-get="/profile/tab/edit"
                         hx-target="#profile-tab-content"
+                        hx-swap="innerHTML"
                         onclick="setActiveTab(this)"
                         class="tab-btn pb-3 border-b-2 border-emerald-500 text-white transition cursor-pointer whitespace-nowrap">
                     Edit Profile
                 </button>
-                <button hx-get="/profile/tab/buddies"
+                <button type="button"
+                        hx-get="/profile/tab/buddies"
                         hx-target="#profile-tab-content"
+                        hx-swap="innerHTML"
                         onclick="setActiveTab(this)"
                         class="tab-btn pb-3 border-b-2 border-transparent text-neutral-400 hover:text-neutral-200 transition cursor-pointer whitespace-nowrap">
                     Manage Buddies
                 </button>
-                <button hx-get="/profile/tab/security"
+                <button type="button"
+                        hx-get="/profile/tab/security"
                         hx-target="#profile-tab-content"
+                        hx-swap="innerHTML"
                         onclick="setActiveTab(this)"
                         class="tab-btn pb-3 border-b-2 border-transparent text-neutral-400 hover:text-neutral-200 transition cursor-pointer whitespace-nowrap">
                     Security & Recovery
                 </button>
-                <button hx-get="/profile/tab/settings"
+                <button type="button"
+                        hx-get="/profile/tab/settings"
                         hx-target="#profile-tab-content"
+                        hx-swap="innerHTML"
                         onclick="setActiveTab(this)"
                         class="tab-btn pb-3 border-b-2 border-transparent text-neutral-400 hover:text-neutral-200 transition cursor-pointer whitespace-nowrap">
                     Account Stats

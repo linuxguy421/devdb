@@ -9,6 +9,7 @@
         <div id="password-change-msg"></div>
 
         <form hx-post="/profile/change-password" hx-target="#password-change-msg" hx-swap="innerHTML" class="space-y-3">
+            <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
             <div>
                 <label class="block text-xs font-bold text-neutral-400 uppercase tracking-wider mb-1.5">Current Password</label>
                 <input type="password" name="current_password" required placeholder="••••••••"
@@ -32,7 +33,7 @@
     <hr class="border-neutral-800">
 
     <!-- Backup Recovery Codes -->
-    <div class="bg-neutral-950/60 border border-neutral-800 rounded-xl p-4 flex items-center justify-between">
+    <div class="bg-neutral-950/60 border border-neutral-800 rounded-xl p-4 flex items-center justify-between gap-3">
         <div>
             <h4 class="text-xs font-bold text-white uppercase tracking-wider">Account Recovery Codes</h4>
             <p class="text-xs text-neutral-400 mt-0.5">
@@ -43,7 +44,8 @@
                 hx-post="/profile/recovery-codes/regenerate"
                 hx-target="body"
                 hx-swap="beforeend"
-                class="bg-neutral-800 hover:bg-neutral-700 text-amber-400 hover:text-amber-300 font-bold border border-amber-500/20 px-3.5 py-2 rounded-xl text-xs transition cursor-pointer">
+                hx-headers='{"X-CSRF-Token": "{{ request.state.csrf_token }}"}'
+                class="bg-neutral-800 hover:bg-neutral-700 text-amber-400 hover:text-amber-300 font-bold border border-amber-500/20 px-3.5 py-2 rounded-xl text-xs transition cursor-pointer shrink-0">
             Generate New Codes
         </button>
     </div>

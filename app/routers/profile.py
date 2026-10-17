@@ -8,7 +8,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.database import get_db
-from app.security import require_csrf
 from app.models import Friendship, RecoveryCode, User, WatchEntry
 from app.routers.auth import get_current_user_optional as get_current_user
 from app.services.avatars import (
@@ -20,7 +19,10 @@ from app.services.avatars import (
 )
 from app.services.recovery_codes import generate_user_recovery_codes
 
-router = APIRouter(prefix="/profile", tags=["Profile"], dependencies=[Depends(require_csrf)])
+# CSRF is enforced by SecurityMiddleware for mutating methods. Do not also
+# attach Depends(require_csrf) on this router — a second form/body read has
+# caused broken HTMX responses, and GETs (tab loads) must stay unblocked.
+router = APIRouter(prefix="/profile", tags=["Profile"])
 templates = Jinja2Templates(directory="app/templates")
 
 
@@ -97,7 +99,7 @@ async def get_profile_tab(
     elif tab_name == "security":
         stmt_codes = select(RecoveryCode).where(
             RecoveryCode.user_id == current_user.id,
-            RecoveryCode.is_used == False,  # noqa: E712
+            RecoveryCode.is_used.is_(False),
         )
         res_codes = await db.execute(stmt_codes)
         active_codes = res_codes.scalars().all()
@@ -147,14 +149,12 @@ async def update_profile(
     previous = current_user.avatar_url
 
     if new_url:
-        # External URL replaces local file
         if is_local_avatar_url(previous):
             delete_local_avatar_by_url(previous)
         current_user.avatar_url = new_url
     else:
-        # Empty URL field: keep existing local avatar; clear only external URLs
         if is_local_avatar_url(previous):
-            pass  # retain local path; use Remove avatar to clear
+            pass
         else:
             current_user.avatar_url = None
 
