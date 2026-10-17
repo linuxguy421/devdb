@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block title %}Audit · Admin · DevDB{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div>
+        <p class="text-[11px] font-semibold uppercase tracking-wider text-emerald-400">
+            <a href="/admin" class="hover:text-emerald-300">Administrator</a>
+            <span class="text-neutral-600 mx-1">/</span>
+            <a href="/admin/users" class="text-neutral-500 hover:text-emerald-300">Users</a>
+        </p>
+        <h1 class="text-3xl font-bold tracking-tight text-white mt-1">Audit log</h1>
+        <p class="text-sm text-neutral-400 mt-1">Recent administrator actions (newest first, last 100).</p>
+    </div>
+
+    <div class="rounded-2xl border border-neutral-800 bg-neutral-900/60 overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm text-left">
+                <thead class="text-[11px] uppercase tracking-wider text-neutral-500 border-b border-neutral-800 bg-neutral-950/50">
+                    <tr>
+                        <th class="px-4 py-3 font-semibold">When</th>
+                        <th class="px-4 py-3 font-semibold">Action</th>
+                        <th class="px-4 py-3 font-semibold">Actor</th>
+                        <th class="px-4 py-3 font-semibold">Target</th>
+                        <th class="px-4 py-3 font-semibold hidden md:table-cell">Detail</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-neutral-800/80">
+                    {% for log in logs %}
+                    <tr class="hover:bg-neutral-900/80">
+                        <td class="px-4 py-3 text-neutral-500 text-xs tabular-nums whitespace-nowrap">
+                            {% if log.created_at %}{{ log.created_at.strftime('%Y-%m-%d %H:%M:%S') }}{% else %}—{% endif %}
+                        </td>
+                        <td class="px-4 py-3 font-medium text-neutral-200">{{ log.action }}</td>
+                        <td class="px-4 py-3 text-neutral-300">
+                            {% if log.actor %}{{ log.actor.username }}{% else %}—{% endif %}
+                        </td>
+                        <td class="px-4 py-3 text-neutral-300">
+                            {% if log.target_user %}{{ log.target_user.username }}{% else %}—{% endif %}
+                        </td>
+                        <td class="px-4 py-3 text-neutral-500 text-xs hidden md:table-cell max-w-xs truncate">
+                            {{ log.detail or '—' }}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="5" class="px-4 py-10 text-center text-neutral-500">No audit events yet.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
