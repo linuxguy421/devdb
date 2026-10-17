@@ -88,6 +88,9 @@
                             <span class="text-xs text-neutral-600">You</span>
                             {% else %}
                             <div class="inline-flex flex-wrap items-center justify-end gap-1.5">
+                                {% if user_is_super %}
+                                <span class="text-[10px] uppercase tracking-wider text-amber-500/80 font-semibold px-1">locked</span>
+                                {% else %}
                                 <form method="post" action="/admin/users/{{ user.id }}/toggle-active" class="inline"
                                       onsubmit="return confirm('{% if user.is_active %}Disable{% else %}Enable{% endif %} {{ user.username }}?');">
                                     <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
@@ -97,7 +100,6 @@
                                         {% if user.is_active %}Disable{% else %}Enable{% endif %}
                                     </button>
                                 </form>
-                                {% if not user_is_super %}
                                 <form method="post" action="/admin/users/{{ user.id }}/toggle-admin" class="inline"
                                       onsubmit="return confirm('{% if user.is_admin %}Remove admin from{% else %}Promote{% endif %} {{ user.username }}?');">
                                     <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
@@ -106,8 +108,6 @@
                                         {% if user.is_admin %}Demote{% else %}Promote{% endif %}
                                     </button>
                                 </form>
-                                {% else %}
-                                <span class="text-[10px] uppercase tracking-wider text-amber-500/80 font-semibold px-1">locked</span>
                                 {% endif %}
                             </div>
                             {% endif %}

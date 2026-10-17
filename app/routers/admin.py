@@ -183,6 +183,11 @@ async def toggle_user_active(
     if not target:
         return _redirect_users(error="User not found.")
 
+    if settings.is_super_admin(target.username):
+        return _redirect_users(
+            error="Cannot disable the super admin (SUPER_ADMIN)."
+        )
+
     target.is_active = not target.is_active
     action = "user.enabled" if target.is_active else "user.disabled"
     await _log_action(
