@@ -15,6 +15,9 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@db:5432/devdb"
     TMDB_API_KEY: str = ""
 
+    # Comma-separated usernames promoted to admin on next successful login
+    ADMIN_USERNAMES: str = ""
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
@@ -28,5 +31,14 @@ class Settings(BaseSettings):
         if self.ENVIRONMENT.strip().lower() == "production" and self.DEBUG:
             raise ValueError("DEBUG must be false when ENVIRONMENT=production")
         return self
+
+    @property
+    def admin_username_set(self) -> set[str]:
+        return {
+            name.strip().casefold()
+            for name in self.ADMIN_USERNAMES.split(",")
+            if name.strip()
+        }
+
 
 settings = Settings()
