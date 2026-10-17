@@ -55,6 +55,7 @@
                         <th class="px-4 py-3 font-semibold hidden sm:table-cell">Email</th>
                         <th class="px-4 py-3 font-semibold">Entries</th>
                         <th class="px-4 py-3 font-semibold">Status</th>
+                        <th class="px-4 py-3 font-semibold hidden lg:table-cell">Last login</th>
                         <th class="px-4 py-3 font-semibold hidden md:table-cell">Joined</th>
                         <th class="px-4 py-3 font-semibold text-right">Actions</th>
                     </tr>
@@ -64,11 +65,11 @@
                     {% set user_is_super = is_super_admin(user.username) %}
                     <tr class="hover:bg-neutral-900/80">
                         <td class="px-4 py-3">
-                            <div class="font-medium text-neutral-100">{{ user.username }}</div>
+                            <a href="/admin/users/{{ user.id }}" class="font-medium text-neutral-100 hover:text-emerald-300 transition">{{ user.username }}</a>
                             {% if user_is_super %}
-                            <span class="text-[10px] uppercase tracking-wider text-amber-400 font-semibold">super</span>
+                            <span class="text-[10px] uppercase tracking-wider text-amber-400 font-semibold ml-1">super</span>
                             {% elif user.is_admin %}
-                            <span class="text-[10px] uppercase tracking-wider text-violet-400 font-semibold">admin</span>
+                            <span class="text-[10px] uppercase tracking-wider text-violet-400 font-semibold ml-1">admin</span>
                             {% endif %}
                         </td>
                         <td class="px-4 py-3 text-neutral-400 hidden sm:table-cell truncate max-w-[12rem]">{{ user.email }}</td>
@@ -80,15 +81,21 @@
                             <span class="inline-flex items-center rounded-full bg-rose-500/15 text-rose-400 px-2 py-0.5 text-[11px] font-semibold">Disabled</span>
                             {% endif %}
                         </td>
+                        <td class="px-4 py-3 text-neutral-500 hidden lg:table-cell text-xs tabular-nums">
+                            {% if user.last_login_at %}{{ user.last_login_at.strftime('%Y-%m-%d %H:%M') }}{% else %}Never{% endif %}
+                        </td>
                         <td class="px-4 py-3 text-neutral-500 hidden md:table-cell text-xs">
                             {% if user.created_at %}{{ user.created_at.strftime('%Y-%m-%d') }}{% else %}—{% endif %}
                         </td>
                         <td class="px-4 py-3 text-right">
-                            {% if user.id == current_user.id %}
-                            <span class="text-xs text-neutral-600">You</span>
-                            {% else %}
                             <div class="inline-flex flex-wrap items-center justify-end gap-1.5">
-                                {% if user_is_super %}
+                                <a href="/admin/users/{{ user.id }}"
+                                   class="text-xs font-semibold rounded-lg px-2.5 py-1.5 border border-neutral-700 text-neutral-300 hover:bg-neutral-800 transition">
+                                    View
+                                </a>
+                                {% if user.id == current_user.id %}
+                                <span class="text-xs text-neutral-600">You</span>
+                                {% elif user_is_super %}
                                 <span class="text-[10px] uppercase tracking-wider text-amber-500/80 font-semibold px-1">locked</span>
                                 {% else %}
                                 <form method="post" action="/admin/users/{{ user.id }}/toggle-active" class="inline"
@@ -110,12 +117,11 @@
                                 </form>
                                 {% endif %}
                             </div>
-                            {% endif %}
                         </td>
                     </tr>
                     {% else %}
                     <tr>
-                        <td colspan="6" class="px-4 py-10 text-center text-neutral-500">No users match these filters.</td>
+                        <td colspan="7" class="px-4 py-10 text-center text-neutral-500">No users match these filters.</td>
                     </tr>
                     {% endfor %}
                 </tbody>

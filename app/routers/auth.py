@@ -201,8 +201,10 @@ async def login_post(
     )
     if should_promote and not user.is_admin:
         user.is_admin = True
-        await db.commit()
-        await db.refresh(user)
+
+    user.last_login_at = datetime.now(timezone.utc)
+    await db.commit()
+    await db.refresh(user)
 
     access_token = create_access_token(data={"sub": user.username})
     response = RedirectResponse(url="/", status_code=status.HTTP_303_SEE_OTHER)
