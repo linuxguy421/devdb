@@ -14,10 +14,11 @@ Built with **FastAPI**, **SQLAlchemy (async)**, **PostgreSQL**, **Jinja2**, **HT
 | **My Media** | Watchlist with statuses: *want to watch*, *in progress*, *watched* |
 | **TV progress** | Season/episode cursor with next-episode advancement |
 | **Ratings & notes** | Personal 1–10 ratings and optional notes |
-| **Stats** | Completion rates, genre breakdowns, monthly completion trends, release decades, milestones |
+| **Stats** | Completion rates, genre breakdowns, monthly completion trends, release decades, milestones, time watched |
 | **What to Watch** | Recommendation picks from your list, discover, or buddy activity |
 | **Buddies** | Friend requests, shared activity, mutual watchlists, title recommendations |
 | **Profile** | Avatar, bio, recovery codes, account settings |
+| **Admin** | User management, audit log, instance health (admins only) |
 | **Security** | Session cookies, CSRF protection, recovery codes for account recovery |
 
 ---
@@ -49,6 +50,8 @@ Edit `.env` and set at least:
 | `SECRET_KEY` | Long random string used for sessions |
 | `TMDB_API_KEY` | Your TMDB v3 API key |
 | `TMDB_READ_ACCESS_TOKEN` | Optional TMDB v4 read access token |
+| `ADMIN_USERNAMES` | Optional: comma-separated usernames promoted to admin on next login |
+| `SUPER_ADMIN` | Optional: single username that is always admin and cannot be demoted or disabled |
 
 ### 2. Start the stack
 
@@ -74,6 +77,57 @@ curl -fsS http://localhost:8000/readyz    # {"status":"ready"} when DB is reacha
 
 ---
 
+## Administrator
+
+Admin tools are available only to users with `is_admin`. An **Admin** link appears in the navbar for those accounts.
+
+### Bootstrap your first admin
+
+1. Register (or use an existing account).
+2. Set one or both of these in `.env`:
+
+```bash
+# Promote these users to admin the next time they log in
+ADMIN_USERNAMES=alice,bob
+
+# Root account: always admin; cannot be demoted or disabled via the UI
+SUPER_ADMIN=alice
+```
+
+3. Restart the app if it was already running so settings reload.
+4. Log in as that username — the admin flag is applied on successful login.
+
+`SUPER_ADMIN` is case-insensitive and takes a **single** username. Prefer setting it for the account you never want locked out.
+
+### Pages
+
+| Path | Purpose |
+|------|---------|
+| `/admin` | Dashboard: user/media counts, DB health, logins in last 7 days, recent audit |
+| `/admin/users` | Search/filter users; quick enable/disable and promote/demote |
+| `/admin/users/{id}` | User detail: account info, library breakdown, recent watches, related audit, actions |
+| `/admin/audit` | Audit log with filters (action, actor, target, date range) |
+
+### What admins can do
+
+- **Enable / disable** accounts (disable blocks login; username and email stay taken — no hard delete)
+- **Promote / demote** administrators
+- Optional **disable reason** on the user detail page (stored in the audit log and shown on the Account panel when the user is disabled)
+- View **last login** times and watch-entry activity per user
+
+### Safety rules
+
+- You cannot disable or change the admin role of **your own** account.
+- You cannot demote the **last** remaining administrator.
+- The **`SUPER_ADMIN`** user cannot be demoted or disabled under any circumstance (UI shows *locked*).
+- Disabled users cannot log in; existing sessions are treated as logged out.
+
+### Audit trail
+
+Admin actions (`user.enabled`, `user.disabled`, `user.promoted`, `user.demoted`) are written to `admin_audit_logs`. Open **Audit** or the **Related audit** section on a user detail page. Filter by action or target username as needed.
+
+---
+
 ## Helper script (`devdb.sh`)
 
 | Command | Purpose |
@@ -96,9 +150,9 @@ Browser  →  FastAPI (Jinja2 + HTMX)  →  PostgreSQL
               TMDB API (search / details / posters)
 ```
 
-- **`app/routers/`** — HTTP routes (pages, auth, titles, watch entries, buddies, profile, stats, what-to-watch)
+- **`app/routers/`** — HTTP routes (pages, auth, admin, titles, watch entries, buddies, profile, stats, what-to-watch)
 - **`app/services/`** — TMDB client, media sync, TV progress, stats aggregation, recommendations
-- **`app/models.py`** — SQLAlchemy models (`User`, `MediaItem`, `WatchEntry`, `TVSeason`, friendships, recommendations, …)
+- **`app/models.py`** — SQLAlchemy models (`User`, `MediaItem`, `WatchEntry`, `TVSeason`, `AdminAuditLog`, friendships, recommendations, …)
 - **`alembic/`** — Schema migrations (applied by the `migration` Compose service before the app starts)
 
 ---
@@ -116,6 +170,8 @@ Settings are loaded from the environment (see `.env.example`). Important keys:
 | `ENVIRONMENT` | `development` or `production` |
 | `COOKIE_SECURE` | Must be `True` when `ENVIRONMENT=production` |
 | `TMDB_API_KEY` | Required for media features |
+| `ADMIN_USERNAMES` | Comma-separated usernames promoted to admin on next successful login |
+| `SUPER_ADMIN` | Single username that is always admin and cannot be demoted or disabled |
 
 Production validation rejects insecure combinations (`DEBUG=True` or `COOKIE_SECURE=False` with `ENVIRONMENT=production`).
 
@@ -167,9 +223,9 @@ For release checklists, backups, and rollback procedure, see **[RELEASE_OPERATIO
 ├── app/                 # Application code
 │   ├── main.py          # FastAPI entrypoint
 │   ├── models.py
-│   ├── routers/
+│   ├── routers/         # includes admin.py
 │   ├── services/
-│   ├── templates/
+│   ├── templates/       # includes templates/admin/
 │   └── static/
 ├── alembic/             # Database migrations
 ├── tests/
