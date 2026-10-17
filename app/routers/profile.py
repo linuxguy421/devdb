@@ -1,5 +1,6 @@
 from typing import Optional
-from fastapi import APIRouter, Depends, Form, Request
+
+from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import or_, select
@@ -10,6 +11,12 @@ from app.database import get_db
 from app.security import require_csrf
 from app.models import Friendship, RecoveryCode, User, WatchEntry
 from app.routers.auth import get_current_user_optional as get_current_user
+from app.services.avatars import (
+    AvatarError,
+    delete_local_avatar,
+    is_local_avatar_url,
+    save_avatar_upload,
+)
 from app.services.recovery_codes import generate_user_recovery_codes
 
 router = APIRouter(prefix="/profile", tags=["Profile"], dependencies=[Depends(require_csrf)])
@@ -120,8 +127,61 @@ async def update_profile(
         return HTMLResponse(status_code=401)
 
     current_user.username = username.strip()
-    current_user.avatar_url = avatar_url.strip() if avatar_url else None
+    new_url = avatar_url.strip() if avatar_url else None
+
+    # Switching away from a local file (or clearing) removes the stored image
+    if is_local_avatar_url(current_user.avatar_url):
+        if not new_url or not is_local_avatar_url(new_url):
+            delete_local_avatar(current_user.id)
+
+    current_user.avatar_url = new_url
     current_user.bio = bio.strip() if bio else None
+    await db.commit()
+
+    response = HTMLResponse(status_code=200)
+    response.headers["HX-Refresh"] = "true"
+    return response
+
+
+@router.post("/avatar", response_class=HTMLResponse)
+async def upload_avatar(
+    request: Request,
+    avatar: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user),
+):
+    if not current_user:
+        return HTMLResponse(status_code=401)
+
+    try:
+        public_url = await save_avatar_upload(current_user.id, avatar)
+    except AvatarError as exc:
+        return HTMLResponse(
+            f"<div class='p-3 rounded-xl bg-red-950/40 border border-red-800/60 text-red-300 text-xs font-semibold'>{exc}</div>",
+            status_code=400,
+        )
+
+    current_user.avatar_url = public_url
+    await db.commit()
+
+    response = HTMLResponse(status_code=200)
+    response.headers["HX-Refresh"] = "true"
+    return response
+
+
+@router.post("/avatar/remove", response_class=HTMLResponse)
+async def remove_avatar(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user),
+):
+    if not current_user:
+        return HTMLResponse(status_code=401)
+
+    if is_local_avatar_url(current_user.avatar_url):
+        delete_local_avatar(current_user.id)
+
+    current_user.avatar_url = None
     await db.commit()
 
     response = HTMLResponse(status_code=200)

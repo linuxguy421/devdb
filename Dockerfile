@@ -24,12 +24,15 @@ FROM python:3.12-slim AS runner
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PATH="/opt/venv/bin:$PATH" \
-    PORT=8000
+    PORT=8000 \
+    AVATAR_DIR=/app/data/avatars
 
 WORKDIR /app
 
 RUN groupadd --gid 10001 devdb && \
-    useradd --uid 10001 --gid devdb --no-create-home --shell /bin/false devdb
+    useradd --uid 10001 --gid devdb --no-create-home --shell /bin/false devdb && \
+    mkdir -p /app/data/avatars && \
+    chown -R devdb:devdb /app/data
 
 COPY --from=builder /opt/venv /opt/venv
 
