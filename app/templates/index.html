@@ -21,6 +21,7 @@
                    placeholder="Search movies or TV shows..."
                    hx-get="/titles/search-partial"
                    hx-trigger="keyup changed delay:300ms, search"
+                   hx-include="#filter-form"
                    hx-target="#search-results"
                    class="w-full bg-neutral-900 border border-neutral-800 text-white rounded-xl px-5 py-3.5 pl-12 text-sm focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none shadow-lg shadow-black/40 placeholder-neutral-500 transition-all">
             <svg class="w-5 h-5 text-neutral-500 absolute left-4 top-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
