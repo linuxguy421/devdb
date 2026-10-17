@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import model_validator
 
@@ -20,6 +22,11 @@ class Settings(BaseSettings):
 
     # Single username that is always admin and can never be demoted
     SUPER_ADMIN: str = ""
+
+    # Local avatar storage (optional upload; external URL still supported)
+    AVATAR_DIR: str = "data/avatars"
+    AVATAR_MAX_BYTES: int = 2 * 1024 * 1024  # 2 MiB
+    AVATAR_MAX_EDGE: int = 512  # longest side after resize
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -52,6 +59,10 @@ class Settings(BaseSettings):
         if not username or not self.super_admin_username:
             return False
         return username.strip().casefold() == self.super_admin_username
+
+    @property
+    def avatar_dir_path(self) -> Path:
+        return Path(self.AVATAR_DIR)
 
 
 settings = Settings()

@@ -1,5 +1,6 @@
 from typing import Optional
-from fastapi import APIRouter, Depends, Form, Request
+
+from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import or_, select
@@ -10,6 +11,13 @@ from app.database import get_db
 from app.security import require_csrf
 from app.models import Friendship, RecoveryCode, User, WatchEntry
 from app.routers.auth import get_current_user_optional as get_current_user
+from app.services.avatars import (
+    AVATAR_URL_PREFIX,
+    AvatarError,
+    delete_local_avatar_by_url,
+    is_local_avatar_url,
+    save_avatar_upload,
+)
 from app.services.recovery_codes import generate_user_recovery_codes
 
 router = APIRouter(prefix="/profile", tags=["Profile"], dependencies=[Depends(require_csrf)])
@@ -30,7 +38,12 @@ async def get_profile_modal(
     return templates.TemplateResponse(
         request=request,
         name="partials/profile_modal.html",
-        context={"request": request, "current_user": current_user, "active_tab": tab},
+        context={
+            "request": request,
+            "current_user": current_user,
+            "active_tab": tab,
+            "avatar_is_local": is_local_avatar_url(current_user.avatar_url),
+        },
     )
 
 
@@ -44,7 +57,12 @@ async def get_profile_tab(
     if not current_user:
         return HTMLResponse(status_code=401)
 
-    context = {"request": request, "current_user": current_user, "active_tab": tab_name}
+    context = {
+        "request": request,
+        "current_user": current_user,
+        "active_tab": tab_name,
+        "avatar_is_local": is_local_avatar_url(current_user.avatar_url),
+    }
 
     if tab_name == "buddies":
         stmt_pending = (
@@ -120,8 +138,76 @@ async def update_profile(
         return HTMLResponse(status_code=401)
 
     current_user.username = username.strip()
-    current_user.avatar_url = avatar_url.strip() if avatar_url else None
+    new_url = (avatar_url or "").strip() or None
+
+    # Never accept client-supplied local media paths (those are server-assigned only)
+    if new_url and new_url.startswith(AVATAR_URL_PREFIX):
+        new_url = None
+
+    previous = current_user.avatar_url
+
+    if new_url:
+        # External URL replaces local file
+        if is_local_avatar_url(previous):
+            delete_local_avatar_by_url(previous)
+        current_user.avatar_url = new_url
+    else:
+        # Empty URL field: keep existing local avatar; clear only external URLs
+        if is_local_avatar_url(previous):
+            pass  # retain local path; use Remove avatar to clear
+        else:
+            current_user.avatar_url = None
+
     current_user.bio = bio.strip() if bio else None
+    await db.commit()
+
+    response = HTMLResponse(status_code=200)
+    response.headers["HX-Refresh"] = "true"
+    return response
+
+
+@router.post("/avatar", response_class=HTMLResponse)
+async def upload_avatar(
+    request: Request,
+    avatar: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user),
+):
+    if not current_user:
+        return HTMLResponse(status_code=401)
+
+    try:
+        public_url = await save_avatar_upload(
+            avatar,
+            replace_url=current_user.avatar_url,
+        )
+    except AvatarError as exc:
+        return HTMLResponse(
+            f"<div class='p-3 rounded-xl bg-red-950/40 border border-red-800/60 text-red-300 text-xs font-semibold'>{exc}</div>",
+            status_code=400,
+        )
+
+    current_user.avatar_url = public_url
+    await db.commit()
+
+    response = HTMLResponse(status_code=200)
+    response.headers["HX-Refresh"] = "true"
+    return response
+
+
+@router.post("/avatar/remove", response_class=HTMLResponse)
+async def remove_avatar(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user),
+):
+    if not current_user:
+        return HTMLResponse(status_code=401)
+
+    if is_local_avatar_url(current_user.avatar_url):
+        delete_local_avatar_by_url(current_user.avatar_url)
+
+    current_user.avatar_url = None
     await db.commit()
 
     response = HTMLResponse(status_code=200)

@@ -24,20 +24,28 @@ FROM python:3.12-slim AS runner
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PATH="/opt/venv/bin:$PATH" \
-    PORT=8000
+    PORT=8000 \
+    AVATAR_DIR=/app/data/avatars
 
 WORKDIR /app
 
-RUN groupadd --gid 10001 devdb && \
-    useradd --uid 10001 --gid devdb --no-create-home --shell /bin/false devdb
+RUN apt-get update && apt-get install -y --no-install-recommends gosu \
+    && rm -rf /var/lib/apt/lists/* \
+    && groupadd --gid 10001 devdb \
+    && useradd --uid 10001 --gid devdb --no-create-home --shell /bin/false devdb \
+    && mkdir -p /app/data/avatars \
+    && chown -R devdb:devdb /app/data
 
 COPY --from=builder /opt/venv /opt/venv
 
 COPY --chown=devdb:devdb app /app/app
 COPY --chown=devdb:devdb alembic /app/alembic
 COPY --chown=devdb:devdb alembic.ini /app/alembic.ini
+COPY docker-entrypoint.sh /app/docker-entrypoint.sh
+RUN chmod +x /app/docker-entrypoint.sh
 
-USER devdb
+# Entrypoint runs as root only long enough to chown the avatar volume, then gosu → devdb
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
 
 EXPOSE 8000
 
