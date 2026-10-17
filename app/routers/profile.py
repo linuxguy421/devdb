@@ -26,6 +26,21 @@ router = APIRouter(prefix="/profile", tags=["Profile"])
 templates = Jinja2Templates(directory="app/templates")
 
 
+def _htmx_msg(message: str, *, ok: bool = False) -> HTMLResponse:
+    """Always 200 so HTMX swaps the fragment into the target (4xx bodies are skipped)."""
+    if ok:
+        css = (
+            "p-3 rounded-xl bg-emerald-950/40 border border-emerald-800/60 "
+            "text-emerald-300 text-xs font-semibold"
+        )
+    else:
+        css = (
+            "p-3 rounded-xl bg-red-950/40 border border-red-800/60 "
+            "text-red-300 text-xs font-semibold"
+        )
+    return HTMLResponse(f"<div class='{css}'>{message}</div>")
+
+
 @router.get("/modal", response_class=HTMLResponse)
 @router.get("/edit-modal", response_class=HTMLResponse)
 async def get_profile_modal(
@@ -182,10 +197,7 @@ async def upload_avatar(
             replace_url=current_user.avatar_url,
         )
     except AvatarError as exc:
-        return HTMLResponse(
-            f"<div class='p-3 rounded-xl bg-red-950/40 border border-red-800/60 text-red-300 text-xs font-semibold'>{exc}</div>",
-            status_code=400,
-        )
+        return _htmx_msg(str(exc))
 
     current_user.avatar_url = public_url
     await db.commit()
@@ -224,29 +236,24 @@ async def change_password(
     current_user: Optional[User] = Depends(get_current_user),
 ):
     if not current_user:
-        return HTMLResponse(status_code=401)
+        return _htmx_msg("You must be logged in to change your password.")
 
     from app.routers.auth import get_password_hash, validate_password, verify_password
 
     if not verify_password(current_password, current_user.hashed_password):
-        return HTMLResponse(
-            "<div class='p-3 rounded-xl bg-red-950/40 border border-red-800/60 text-red-300 text-xs font-semibold'>Incorrect current password.</div>",
-            status_code=400,
-        )
+        return _htmx_msg("Incorrect current password.")
 
     password_error = validate_password(new_password)
     if password_error:
-        return HTMLResponse(
-            f"<div class='p-3 rounded-xl bg-red-950/40 border border-red-800/60 text-red-300 text-xs font-semibold'>{password_error}</div>",
-            status_code=400,
-        )
+        return _htmx_msg(password_error)
+
+    if current_password == new_password:
+        return _htmx_msg("New password must be different from the current password.")
 
     current_user.hashed_password = get_password_hash(new_password)
     await db.commit()
 
-    return HTMLResponse(
-        "<div class='p-3 rounded-xl bg-emerald-950/40 border border-emerald-800/60 text-emerald-300 text-xs font-semibold'>Password updated successfully!</div>"
-    )
+    return _htmx_msg("Password updated successfully!", ok=True)
 
 
 @router.post("/recovery-codes/regenerate", response_class=HTMLResponse)
