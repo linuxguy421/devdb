@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+
+{% block title %}Admin · DevDB{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+        <div>
+            <p class="text-[11px] font-semibold uppercase tracking-wider text-emerald-400">Administrator</p>
+            <h1 class="text-3xl font-bold tracking-tight text-white mt-1">Dashboard</h1>
+            <p class="text-sm text-neutral-400 mt-1">Instance health and high-level counts.</p>
+        </div>
+        <a href="/admin/users"
+           class="inline-flex items-center rounded-xl bg-neutral-900 border border-neutral-800 px-4 py-2 text-sm font-semibold text-neutral-200 hover:bg-neutral-800 hover:text-white transition">
+            Manage users →
+        </a>
+    </div>
+
+    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+        <div class="rounded-2xl border border-neutral-800 bg-neutral-900/70 px-4 py-4 text-center">
+            <div class="text-2xl font-bold text-white tabular-nums">{{ counts.users }}</div>
+            <div class="mt-1 text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Users</div>
+        </div>
+        <div class="rounded-2xl border border-neutral-800 bg-neutral-900/70 px-4 py-4 text-center">
+            <div class="text-2xl font-bold text-emerald-400 tabular-nums">{{ counts.active_users }}</div>
+            <div class="mt-1 text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Active</div>
+        </div>
+        <div class="rounded-2xl border border-neutral-800 bg-neutral-900/70 px-4 py-4 text-center">
+            <div class="text-2xl font-bold text-violet-400 tabular-nums">{{ counts.admins }}</div>
+            <div class="mt-1 text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Admins</div>
+        </div>
+        <div class="rounded-2xl border border-neutral-800 bg-neutral-900/70 px-4 py-4 text-center">
+            <div class="text-2xl font-bold text-sky-400 tabular-nums">{{ counts.media_items }}</div>
+            <div class="mt-1 text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Media items</div>
+        </div>
+        <div class="rounded-2xl border border-neutral-800 bg-neutral-900/70 px-4 py-4 text-center col-span-2 sm:col-span-1">
+            <div class="text-2xl font-bold text-amber-400 tabular-nums">{{ counts.watch_entries }}</div>
+            <div class="mt-1 text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Watch entries</div>
+        </div>
+    </div>
+
+    <div class="rounded-2xl border border-neutral-800 bg-neutral-900/60 p-5">
+        <h2 class="text-xs font-semibold uppercase tracking-wider text-neutral-400 mb-3">Health</h2>
+        <div class="flex flex-wrap gap-4 text-sm">
+            <div class="flex items-center gap-2">
+                <span class="inline-block w-2 h-2 rounded-full {% if db_ok %}bg-emerald-400{% else %}bg-rose-500{% endif %}"></span>
+                <span class="text-neutral-300">Database</span>
+                <span class="text-neutral-500">{% if db_ok %}reachable{% else %}unreachable{% endif %}</span>
+            </div>
+            <div class="flex items-center gap-2">
+                <span class="inline-block w-2 h-2 rounded-full bg-emerald-400"></span>
+                <span class="text-neutral-300">Signed in as</span>
+                <span class="text-neutral-200 font-medium">{{ current_user.username }}</span>
+                <span class="text-[10px] uppercase tracking-wider text-violet-400 font-semibold">admin</span>
+            </div>
+        </div>
+        <p class="mt-4 text-[11px] text-neutral-600 leading-relaxed">
+            Public probes: <code class="text-neutral-500">/healthz</code> and <code class="text-neutral-500">/readyz</code>.
+            Promote operators with <code class="text-neutral-500">ADMIN_USERNAMES</code> in the environment (comma-separated); they receive the admin flag on next successful login.
+        </p>
+    </div>
+</div>
+{% endblock %}
