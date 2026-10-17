@@ -29,18 +29,23 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 
-RUN groupadd --gid 10001 devdb && \
-    useradd --uid 10001 --gid devdb --no-create-home --shell /bin/false devdb && \
-    mkdir -p /app/data/avatars && \
-    chown -R devdb:devdb /app/data
+RUN apt-get update && apt-get install -y --no-install-recommends gosu \
+    && rm -rf /var/lib/apt/lists/* \
+    && groupadd --gid 10001 devdb \
+    && useradd --uid 10001 --gid devdb --no-create-home --shell /bin/false devdb \
+    && mkdir -p /app/data/avatars \
+    && chown -R devdb:devdb /app/data
 
 COPY --from=builder /opt/venv /opt/venv
 
 COPY --chown=devdb:devdb app /app/app
 COPY --chown=devdb:devdb alembic /app/alembic
 COPY --chown=devdb:devdb alembic.ini /app/alembic.ini
+COPY docker-entrypoint.sh /app/docker-entrypoint.sh
+RUN chmod +x /app/docker-entrypoint.sh
 
-USER devdb
+# Entrypoint runs as root only long enough to chown the avatar volume, then gosu → devdb
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
 
 EXPOSE 8000
 
