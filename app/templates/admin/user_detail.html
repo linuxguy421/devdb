@@ -68,6 +68,27 @@
                     <dd class="text-neutral-200 tabular-nums">{{ total_entries }}</dd>
                 </div>
             </dl>
+
+            {% if not target.is_active %}
+            <div class="rounded-xl border border-rose-500/25 bg-rose-500/10 px-3 py-3 space-y-1.5">
+                <p class="text-[11px] font-semibold uppercase tracking-wider text-rose-400">Disable reason</p>
+                {% if last_disable_reason %}
+                <p class="text-sm text-neutral-100">{{ last_disable_reason }}</p>
+                {% else %}
+                <p class="text-sm text-neutral-400">No reason recorded (quick disable from users list, or older event).</p>
+                {% endif %}
+                {% if last_disable_at or last_disable_by %}
+                <p class="text-[11px] text-neutral-500">
+                    {% if last_disable_by %}by {{ last_disable_by }}{% endif %}
+                    {% if last_disable_at %}
+                    {% if last_disable_by %} · {% endif %}
+                    {{ last_disable_at.strftime('%Y-%m-%d %H:%M') }}
+                    {% endif %}
+                </p>
+                {% endif %}
+            </div>
+            {% endif %}
+
             {% if target.bio %}
             <p class="text-xs text-neutral-500 border-t border-neutral-800 pt-3">{{ target.bio }}</p>
             {% endif %}

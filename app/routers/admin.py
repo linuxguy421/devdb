@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 from urllib.parse import quote
@@ -28,6 +29,18 @@ AUDIT_ACTIONS = (
     "user.promoted",
     "user.demoted",
 )
+
+_REASON_RE = re.compile(r"(?:^|;\s*)reason=(.+)$", re.IGNORECASE)
+
+
+def _extract_disable_reason(detail: str | None) -> str | None:
+    if not detail:
+        return None
+    match = _REASON_RE.search(detail.strip())
+    if not match:
+        return None
+    reason = match.group(1).strip()
+    return reason or None
 
 
 async def _log_action(
@@ -247,6 +260,27 @@ async def admin_user_detail(
     )
     user_logs = (await db.execute(audit_stmt)).unique().scalars().all()
 
+    # Latest disable event for this user (for Account panel)
+    last_disable_reason = None
+    last_disable_at = None
+    last_disable_by = None
+    if not target.is_active:
+        disable_stmt = (
+            select(AdminAuditLog)
+            .options(joinedload(AdminAuditLog.actor))
+            .where(
+                AdminAuditLog.target_user_id == user_id,
+                AdminAuditLog.action == "user.disabled",
+            )
+            .order_by(AdminAuditLog.created_at.desc())
+            .limit(1)
+        )
+        last_disable = (await db.execute(disable_stmt)).unique().scalar_one_or_none()
+        if last_disable:
+            last_disable_reason = _extract_disable_reason(last_disable.detail)
+            last_disable_at = last_disable.created_at
+            last_disable_by = last_disable.actor.username if last_disable.actor else None
+
     return templates.TemplateResponse(
         request=request,
         name="admin/user_detail.html",
@@ -258,6 +292,9 @@ async def admin_user_detail(
             "total_entries": total_entries,
             "recent_entries": recent_entries,
             "user_logs": user_logs,
+            "last_disable_reason": last_disable_reason,
+            "last_disable_at": last_disable_at,
+            "last_disable_by": last_disable_by,
             "message": request.query_params.get("message"),
             "error": request.query_params.get("error"),
             "is_super_admin": settings.is_super_admin,
@@ -396,29 +433,23 @@ async def admin_audit(
 
     target_clean = (target or "").strip()
     if target_clean:
-        # Use alias-safe filter via subquery on target_user relationship
-        target_ids = (
-            select(User.id).where(User.username.ilike(f"%{target_clean}%"))
-        )
+        target_ids = select(User.id).where(User.username.ilike(f"%{target_clean}%"))
         stmt = stmt.where(AdminAuditLog.target_user_id.in_(target_ids))
 
-    since_dt = None
-    until_dt = None
     if since:
         try:
             since_dt = datetime.fromisoformat(since).replace(tzinfo=timezone.utc)
             stmt = stmt.where(AdminAuditLog.created_at >= since_dt)
         except ValueError:
-            since_dt = None
+            pass
     if until:
         try:
             until_dt = datetime.fromisoformat(until).replace(tzinfo=timezone.utc)
-            # Inclusive end-of-day if date-only (YYYY-MM-DD)
             if len(until.strip()) <= 10:
                 until_dt = until_dt + timedelta(days=1) - timedelta(microseconds=1)
             stmt = stmt.where(AdminAuditLog.created_at <= until_dt)
         except ValueError:
-            until_dt = None
+            pass
 
     logs = (await db.execute(stmt)).unique().scalars().all()
 
