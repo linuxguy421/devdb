@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+
+{% block title %}Audit · Admin · DevDB{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div>
+        <p class="text-[11px] font-semibold uppercase tracking-wider text-emerald-400">
+            <a href="/admin" class="hover:text-emerald-300">Administrator</a>
+            <span class="text-neutral-600 mx-1">/</span>
+            <a href="/admin/users" class="text-neutral-500 hover:text-emerald-300">Users</a>
+        </p>
+        <h1 class="text-3xl font-bold tracking-tight text-white mt-1">Audit log</h1>
+        <p class="text-sm text-neutral-400 mt-1">Administrator actions (newest first, up to 200 matching rows).</p>
+    </div>
+
+    <form method="get" action="/admin/audit" class="rounded-2xl border border-neutral-800 bg-neutral-900/60 p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 items-end">
+        <label>
+            <span class="block text-[11px] font-semibold uppercase tracking-wider text-neutral-500 mb-1.5">Action</span>
+            <select name="action"
+                    class="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-white focus:border-emerald-500/50 focus:outline-none">
+                <option value="all" {% if filter_action == 'all' %}selected{% endif %}>All</option>
+                {% for a in actions %}
+                <option value="{{ a }}" {% if filter_action == a %}selected{% endif %}>{{ a }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <label>
+            <span class="block text-[11px] font-semibold uppercase tracking-wider text-neutral-500 mb-1.5">Actor</span>
+            <input type="text" name="actor" value="{{ filter_actor }}" placeholder="Username…"
+                   class="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-white placeholder:text-neutral-600 focus:border-emerald-500/50 focus:outline-none">
+        </label>
+        <label>
+            <span class="block text-[11px] font-semibold uppercase tracking-wider text-neutral-500 mb-1.5">Target</span>
+            <input type="text" name="target" value="{{ filter_target }}" placeholder="Username…"
+                   class="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-white placeholder:text-neutral-600 focus:border-emerald-500/50 focus:outline-none">
+        </label>
+        <label>
+            <span class="block text-[11px] font-semibold uppercase tracking-wider text-neutral-500 mb-1.5">Since</span>
+            <input type="date" name="since" value="{{ filter_since }}"
+                   class="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-white focus:border-emerald-500/50 focus:outline-none">
+        </label>
+        <label>
+            <span class="block text-[11px] font-semibold uppercase tracking-wider text-neutral-500 mb-1.5">Until</span>
+            <input type="date" name="until" value="{{ filter_until }}"
+                   class="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-white focus:border-emerald-500/50 focus:outline-none">
+        </label>
+        <div class="flex gap-2">
+            <button type="submit"
+                    class="flex-1 rounded-xl bg-emerald-500 px-4 py-2 text-sm font-semibold text-neutral-950 hover:bg-emerald-400 transition">
+                Apply
+            </button>
+            <a href="/admin/audit"
+               class="rounded-xl border border-neutral-700 px-3 py-2 text-sm text-neutral-400 hover:text-white hover:bg-neutral-800 transition">
+                Clear
+            </a>
+        </div>
+    </form>
+
+    <div class="rounded-2xl border border-neutral-800 bg-neutral-900/60 overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm text-left">
+                <thead class="text-[11px] uppercase tracking-wider text-neutral-500 border-b border-neutral-800 bg-neutral-950/50">
+                    <tr>
+                        <th class="px-4 py-3 font-semibold">When</th>
+                        <th class="px-4 py-3 font-semibold">Action</th>
+                        <th class="px-4 py-3 font-semibold">Actor</th>
+                        <th class="px-4 py-3 font-semibold">Target</th>
+                        <th class="px-4 py-3 font-semibold hidden md:table-cell">Detail</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-neutral-800/80">
+                    {% for log in logs %}
+                    <tr class="hover:bg-neutral-900/80">
+                        <td class="px-4 py-3 text-neutral-500 text-xs tabular-nums whitespace-nowrap">
+                            {% if log.created_at %}{{ log.created_at.strftime('%Y-%m-%d %H:%M:%S') }}{% else %}—{% endif %}
+                        </td>
+                        <td class="px-4 py-3 font-medium text-neutral-200">{{ log.action }}</td>
+                        <td class="px-4 py-3 text-neutral-300">
+                            {% if log.actor %}
+                            <a href="/admin/users/{{ log.actor.id }}" class="hover:text-emerald-300">{{ log.actor.username }}</a>
+                            {% else %}—{% endif %}
+                        </td>
+                        <td class="px-4 py-3 text-neutral-300">
+                            {% if log.target_user %}
+                            <a href="/admin/users/{{ log.target_user.id }}" class="hover:text-emerald-300">{{ log.target_user.username }}</a>
+                            {% else %}—{% endif %}
+                        </td>
+                        <td class="px-4 py-3 text-neutral-500 text-xs hidden md:table-cell max-w-xs truncate" title="{{ log.detail or '' }}">
+                            {{ log.detail or '—' }}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="5" class="px-4 py-10 text-center text-neutral-500">No audit events match these filters.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

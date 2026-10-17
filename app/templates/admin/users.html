@@ -8,9 +8,11 @@
         <div>
             <p class="text-[11px] font-semibold uppercase tracking-wider text-emerald-400">
                 <a href="/admin" class="hover:text-emerald-300">Administrator</a>
+                <span class="text-neutral-600 mx-1">/</span>
+                <a href="/admin/audit" class="text-neutral-500 hover:text-emerald-300">Audit</a>
             </p>
             <h1 class="text-3xl font-bold tracking-tight text-white mt-1">Users</h1>
-            <p class="text-sm text-neutral-400 mt-1">Search accounts and enable or disable access.</p>
+            <p class="text-sm text-neutral-400 mt-1">Enable or disable access, and promote or demote administrators.</p>
         </div>
     </div>
 
@@ -53,17 +55,21 @@
                         <th class="px-4 py-3 font-semibold hidden sm:table-cell">Email</th>
                         <th class="px-4 py-3 font-semibold">Entries</th>
                         <th class="px-4 py-3 font-semibold">Status</th>
+                        <th class="px-4 py-3 font-semibold hidden lg:table-cell">Last login</th>
                         <th class="px-4 py-3 font-semibold hidden md:table-cell">Joined</th>
                         <th class="px-4 py-3 font-semibold text-right">Actions</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-neutral-800/80">
                     {% for user in users %}
+                    {% set user_is_super = is_super_admin(user.username) %}
                     <tr class="hover:bg-neutral-900/80">
                         <td class="px-4 py-3">
-                            <div class="font-medium text-neutral-100">{{ user.username }}</div>
-                            {% if user.is_admin %}
-                            <span class="text-[10px] uppercase tracking-wider text-violet-400 font-semibold">admin</span>
+                            <a href="/admin/users/{{ user.id }}" class="font-medium text-neutral-100 hover:text-emerald-300 transition">{{ user.username }}</a>
+                            {% if user_is_super %}
+                            <span class="text-[10px] uppercase tracking-wider text-amber-400 font-semibold ml-1">super</span>
+                            {% elif user.is_admin %}
+                            <span class="text-[10px] uppercase tracking-wider text-violet-400 font-semibold ml-1">admin</span>
                             {% endif %}
                         </td>
                         <td class="px-4 py-3 text-neutral-400 hidden sm:table-cell truncate max-w-[12rem]">{{ user.email }}</td>
@@ -75,28 +81,47 @@
                             <span class="inline-flex items-center rounded-full bg-rose-500/15 text-rose-400 px-2 py-0.5 text-[11px] font-semibold">Disabled</span>
                             {% endif %}
                         </td>
+                        <td class="px-4 py-3 text-neutral-500 hidden lg:table-cell text-xs tabular-nums">
+                            {% if user.last_login_at %}{{ user.last_login_at.strftime('%Y-%m-%d %H:%M') }}{% else %}Never{% endif %}
+                        </td>
                         <td class="px-4 py-3 text-neutral-500 hidden md:table-cell text-xs">
                             {% if user.created_at %}{{ user.created_at.strftime('%Y-%m-%d') }}{% else %}—{% endif %}
                         </td>
                         <td class="px-4 py-3 text-right">
-                            {% if user.id == current_user.id %}
-                            <span class="text-xs text-neutral-600">You</span>
-                            {% else %}
-                            <form method="post" action="/admin/users/{{ user.id }}/toggle-active" class="inline"
-                                  onsubmit="return confirm('{% if user.is_active %}Disable{% else %}Enable{% endif %} {{ user.username }}?');">
-                                <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
-                                <button type="submit"
-                                        class="text-xs font-semibold rounded-lg px-2.5 py-1.5 border transition
-                                        {% if user.is_active %}border-rose-500/40 text-rose-400 hover:bg-rose-500/10{% else %}border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10{% endif %}">
-                                    {% if user.is_active %}Disable{% else %}Enable{% endif %}
-                                </button>
-                            </form>
-                            {% endif %}
+                            <div class="inline-flex flex-wrap items-center justify-end gap-1.5">
+                                <a href="/admin/users/{{ user.id }}"
+                                   class="text-xs font-semibold rounded-lg px-2.5 py-1.5 border border-neutral-700 text-neutral-300 hover:bg-neutral-800 transition">
+                                    View
+                                </a>
+                                {% if user.id == current_user.id %}
+                                <span class="text-xs text-neutral-600">You</span>
+                                {% elif user_is_super %}
+                                <span class="text-[10px] uppercase tracking-wider text-amber-500/80 font-semibold px-1">locked</span>
+                                {% else %}
+                                <form method="post" action="/admin/users/{{ user.id }}/toggle-active" class="inline"
+                                      onsubmit="return confirm('{% if user.is_active %}Disable{% else %}Enable{% endif %} {{ user.username }}?');">
+                                    <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+                                    <button type="submit"
+                                            class="text-xs font-semibold rounded-lg px-2.5 py-1.5 border transition
+                                            {% if user.is_active %}border-rose-500/40 text-rose-400 hover:bg-rose-500/10{% else %}border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10{% endif %}">
+                                        {% if user.is_active %}Disable{% else %}Enable{% endif %}
+                                    </button>
+                                </form>
+                                <form method="post" action="/admin/users/{{ user.id }}/toggle-admin" class="inline"
+                                      onsubmit="return confirm('{% if user.is_admin %}Remove admin from{% else %}Promote{% endif %} {{ user.username }}?');">
+                                    <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+                                    <button type="submit"
+                                            class="text-xs font-semibold rounded-lg px-2.5 py-1.5 border border-violet-500/40 text-violet-300 hover:bg-violet-500/10 transition">
+                                        {% if user.is_admin %}Demote{% else %}Promote{% endif %}
+                                    </button>
+                                </form>
+                                {% endif %}
+                            </div>
                         </td>
                     </tr>
                     {% else %}
                     <tr>
-                        <td colspan="6" class="px-4 py-10 text-center text-neutral-500">No users match these filters.</td>
+                        <td colspan="7" class="px-4 py-10 text-center text-neutral-500">No users match these filters.</td>
                     </tr>
                     {% endfor %}
                 </tbody>

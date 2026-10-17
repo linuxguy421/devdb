@@ -18,6 +18,9 @@ class Settings(BaseSettings):
     # Comma-separated usernames promoted to admin on next successful login
     ADMIN_USERNAMES: str = ""
 
+    # Single username that is always admin and can never be demoted
+    SUPER_ADMIN: str = ""
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
@@ -39,6 +42,16 @@ class Settings(BaseSettings):
             for name in self.ADMIN_USERNAMES.split(",")
             if name.strip()
         }
+
+    @property
+    def super_admin_username(self) -> str | None:
+        name = (self.SUPER_ADMIN or "").strip()
+        return name.casefold() if name else None
+
+    def is_super_admin(self, username: str | None) -> bool:
+        if not username or not self.super_admin_username:
+            return False
+        return username.strip().casefold() == self.super_admin_username
 
 
 settings = Settings()

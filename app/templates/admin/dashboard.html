@@ -8,15 +8,21 @@
         <div>
             <p class="text-[11px] font-semibold uppercase tracking-wider text-emerald-400">Administrator</p>
             <h1 class="text-3xl font-bold tracking-tight text-white mt-1">Dashboard</h1>
-            <p class="text-sm text-neutral-400 mt-1">Instance health and high-level counts.</p>
+            <p class="text-sm text-neutral-400 mt-1">Instance health, counts, and recent admin actions.</p>
         </div>
-        <a href="/admin/users"
-           class="inline-flex items-center rounded-xl bg-neutral-900 border border-neutral-800 px-4 py-2 text-sm font-semibold text-neutral-200 hover:bg-neutral-800 hover:text-white transition">
-            Manage users →
-        </a>
+        <div class="flex flex-wrap gap-2">
+            <a href="/admin/users"
+               class="inline-flex items-center rounded-xl bg-neutral-900 border border-neutral-800 px-4 py-2 text-sm font-semibold text-neutral-200 hover:bg-neutral-800 hover:text-white transition">
+                Manage users →
+            </a>
+            <a href="/admin/audit"
+               class="inline-flex items-center rounded-xl bg-neutral-900 border border-neutral-800 px-4 py-2 text-sm font-semibold text-neutral-200 hover:bg-neutral-800 hover:text-white transition">
+                Audit log →
+            </a>
+        </div>
     </div>
 
-    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-3">
         <div class="rounded-2xl border border-neutral-800 bg-neutral-900/70 px-4 py-4 text-center">
             <div class="text-2xl font-bold text-white tabular-nums">{{ counts.users }}</div>
             <div class="mt-1 text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Users</div>
@@ -26,38 +32,87 @@
             <div class="mt-1 text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Active</div>
         </div>
         <div class="rounded-2xl border border-neutral-800 bg-neutral-900/70 px-4 py-4 text-center">
+            <div class="text-2xl font-bold text-sky-400 tabular-nums">{{ counts.recent_logins }}</div>
+            <div class="mt-1 text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Logged in 7d</div>
+        </div>
+        <div class="rounded-2xl border border-neutral-800 bg-neutral-900/70 px-4 py-4 text-center">
+            <div class="text-2xl font-bold text-rose-400 tabular-nums">{{ counts.disabled_users }}</div>
+            <div class="mt-1 text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Disabled</div>
+        </div>
+        <div class="rounded-2xl border border-neutral-800 bg-neutral-900/70 px-4 py-4 text-center">
             <div class="text-2xl font-bold text-violet-400 tabular-nums">{{ counts.admins }}</div>
             <div class="mt-1 text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Admins</div>
         </div>
         <div class="rounded-2xl border border-neutral-800 bg-neutral-900/70 px-4 py-4 text-center">
-            <div class="text-2xl font-bold text-sky-400 tabular-nums">{{ counts.media_items }}</div>
+            <div class="text-2xl font-bold text-sky-300 tabular-nums">{{ counts.media_items }}</div>
             <div class="mt-1 text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Media items</div>
         </div>
-        <div class="rounded-2xl border border-neutral-800 bg-neutral-900/70 px-4 py-4 text-center col-span-2 sm:col-span-1">
+        <div class="rounded-2xl border border-neutral-800 bg-neutral-900/70 px-4 py-4 text-center">
             <div class="text-2xl font-bold text-amber-400 tabular-nums">{{ counts.watch_entries }}</div>
             <div class="mt-1 text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Watch entries</div>
         </div>
     </div>
 
-    <div class="rounded-2xl border border-neutral-800 bg-neutral-900/60 p-5">
-        <h2 class="text-xs font-semibold uppercase tracking-wider text-neutral-400 mb-3">Health</h2>
-        <div class="flex flex-wrap gap-4 text-sm">
-            <div class="flex items-center gap-2">
-                <span class="inline-block w-2 h-2 rounded-full {% if db_ok %}bg-emerald-400{% else %}bg-rose-500{% endif %}"></span>
-                <span class="text-neutral-300">Database</span>
-                <span class="text-neutral-500">{% if db_ok %}reachable{% else %}unreachable{% endif %}</span>
-            </div>
-            <div class="flex items-center gap-2">
-                <span class="inline-block w-2 h-2 rounded-full bg-emerald-400"></span>
-                <span class="text-neutral-300">Signed in as</span>
-                <span class="text-neutral-200 font-medium">{{ current_user.username }}</span>
-                <span class="text-[10px] uppercase tracking-wider text-violet-400 font-semibold">admin</span>
-            </div>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div class="rounded-2xl border border-neutral-800 bg-neutral-900/60 p-5">
+            <h2 class="text-xs font-semibold uppercase tracking-wider text-neutral-400 mb-3">Health &amp; system</h2>
+            <dl class="space-y-2 text-sm">
+                <div class="flex justify-between gap-3">
+                    <dt class="text-neutral-500">Database</dt>
+                    <dd class="{% if db_ok %}text-emerald-400{% else %}text-rose-400{% endif %} font-medium">
+                        {% if db_ok %}reachable{% else %}unreachable{% endif %}
+                    </dd>
+                </div>
+                <div class="flex justify-between gap-3">
+                    <dt class="text-neutral-500">Environment</dt>
+                    <dd class="text-neutral-200 font-medium">{{ environment }}</dd>
+                </div>
+                <div class="flex justify-between gap-3">
+                    <dt class="text-neutral-500">App version</dt>
+                    <dd class="text-neutral-200 font-mono text-xs">{{ app_version }}</dd>
+                </div>
+                <div class="flex justify-between gap-3">
+                    <dt class="text-neutral-500">Debug</dt>
+                    <dd class="{% if debug %}text-amber-400{% else %}text-neutral-200{% endif %}">{{ debug }}</dd>
+                </div>
+                <div class="flex justify-between gap-3">
+                    <dt class="text-neutral-500">Signed in as</dt>
+                    <dd class="text-neutral-200">{{ current_user.username }} <span class="text-[10px] uppercase tracking-wider text-violet-400 font-semibold">admin</span></dd>
+                </div>
+            </dl>
+            <p class="mt-4 text-[11px] text-neutral-600 leading-relaxed">
+                Public probes: <code class="text-neutral-500">/healthz</code> and <code class="text-neutral-500">/readyz</code>.
+                Bootstrap admins with <code class="text-neutral-500">ADMIN_USERNAMES</code>; lock the root account with <code class="text-neutral-500">SUPER_ADMIN</code>.
+            </p>
         </div>
-        <p class="mt-4 text-[11px] text-neutral-600 leading-relaxed">
-            Public probes: <code class="text-neutral-500">/healthz</code> and <code class="text-neutral-500">/readyz</code>.
-            Promote operators with <code class="text-neutral-500">ADMIN_USERNAMES</code> in the environment (comma-separated); they receive the admin flag on next successful login.
-        </p>
+
+        <div class="rounded-2xl border border-neutral-800 bg-neutral-900/60 p-5">
+            <div class="flex items-center justify-between mb-3">
+                <h2 class="text-xs font-semibold uppercase tracking-wider text-neutral-400">Recent audit</h2>
+                <a href="/admin/audit" class="text-[11px] font-semibold text-emerald-400 hover:text-emerald-300">View all →</a>
+            </div>
+            {% if recent_logs %}
+            <ul class="space-y-2.5">
+                {% for log in recent_logs %}
+                <li class="flex flex-col gap-0.5 text-sm border-b border-neutral-800/80 pb-2 last:border-0 last:pb-0">
+                    <div class="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                        <span class="font-medium text-neutral-200">{{ log.action }}</span>
+                        <span class="text-neutral-500 text-xs tabular-nums">
+                            {% if log.created_at %}{{ log.created_at.strftime('%Y-%m-%d %H:%M') }}{% endif %}
+                        </span>
+                    </div>
+                    <div class="text-xs text-neutral-500">
+                        {% if log.actor %}{{ log.actor.username }}{% else %}—{% endif %}
+                        {% if log.target_user %} → {{ log.target_user.username }}{% endif %}
+                        {% if log.detail %}<span class="text-neutral-600"> · {{ log.detail }}</span>{% endif %}
+                    </div>
+                </li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            <p class="text-sm text-neutral-500">No admin actions recorded yet.</p>
+            {% endif %}
+        </div>
     </div>
 </div>
 {% endblock %}
