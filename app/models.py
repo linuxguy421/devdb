@@ -366,3 +366,37 @@ class Recommendation(Base):
         "User",
         foreign_keys=[receiver_id],
     )
+
+
+class AdminAuditLog(Base):
+    """Lightweight record of administrator actions (enable/disable, promote/demote)."""
+
+    __tablename__ = "admin_audit_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    actor_id = Column(
+        Integer,
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    target_user_id = Column(
+        Integer,
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+
+    action = Column(String(50), nullable=False, index=True)
+    detail = Column(Text, nullable=True)
+
+    created_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+        index=True,
+    )
+
+    actor = relationship("User", foreign_keys=[actor_id])
+    target_user = relationship("User", foreign_keys=[target_user_id])
