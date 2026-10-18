@@ -1,16 +1,16 @@
 """add append-only scrobble event history
 
 Revision ID: f3a91c7d2e10
-Revises: b7e3a91c4d20, e0f7a2b3c4d5
+Revises: e0f7a2b3c4d5
 Create Date: 2026-10-17 22:00:00.000000
 
-Merge both existing migration heads and add the new scrobble history table.
+Add the new scrobble history table after the current migration head.
 """
 from alembic import op
 import sqlalchemy as sa
 
 revision = "f3a91c7d2e10"
-down_revision = ("b7e3a91c4d20", "e0f7a2b3c4d5")
+down_revision = "e0f7a2b3c4d5"
 branch_labels = None
 depends_on = None
 
