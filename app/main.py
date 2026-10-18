@@ -12,6 +12,7 @@ from app.middleware import SecurityMiddleware
 from app.config import settings
 from app.database import AsyncSessionLocal
 from app.routers import auth, pages, titles, users, watch_entries, buddies, profile, what_to_watch, admin
+from app.scrobble.router import router as scrobble_router
 from app.services.avatars import ensure_avatar_dir
 
 
@@ -86,3 +87,4 @@ app.include_router(buddies.router)
 app.include_router(profile.router)
 app.include_router(what_to_watch.router)
 app.include_router(admin.router)
+app.include_router(scrobble_router)
