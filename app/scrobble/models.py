@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from sqlalchemy import (
     CheckConstraint,
     DateTime,
@@ -18,7 +20,7 @@ class ScrobbleEvent(Base):
 
     __tablename__ = "scrobble_events"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
     user_id: Mapped[int] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
@@ -37,10 +39,11 @@ class ScrobbleEvent(Base):
     identifier_source: Mapped[str] = mapped_column(String(10), nullable=False)
     identifier_value: Mapped[str] = mapped_column(String(100), nullable=False)
     source_event_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    received_at: Mapped[DateTime] = mapped_column(
+    received_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
         server_default=func.now(),
+        index=True,
     )
 
     __table_args__ = (
