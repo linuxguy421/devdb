@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
-from app.models import User, WatchEntry
+from app.models import TVSeason, User, WatchEntry
 from app.scrobble.identifiers import resolve_tmdb_identifier
 from app.scrobble.models import ScrobbleEvent
 from app.scrobble.schemas import NormalizedScrobble, ScrobbleEventType, ScrobbleMediaType
@@ -37,6 +37,21 @@ async def authenticate_user_token(db: AsyncSession, token: str) -> User:
     return user
 
 
+async def _is_final_available_episode(db: AsyncSession, media_item_id: int, season: int, episode: int) -> bool:
+    """Return true when the scrobbled episode reaches the final cached episode."""
+    result = await db.execute(
+        select(TVSeason.season_number, TVSeason.episode_count)
+        .where(TVSeason.media_item_id == media_item_id)
+        .order_by(TVSeason.season_number.desc())
+    )
+    seasons = result.all()
+    seasons = [row for row in seasons if row.season_number > 0 and row.episode_count > 0]
+    if not seasons:
+        return False
+    final_season = seasons[0]
+    return season == final_season.season_number and episode >= final_season.episode_count
+
+
 async def process_scrobble(
     db: AsyncSession,
     scrobble: NormalizedScrobble,
@@ -60,8 +75,7 @@ async def process_scrobble(
         raise HTTPException(status_code=422, detail="Media could not be resolved or synchronized")
 
     try:
-        # Retry-safe for sources that provide a stable event ID. PostgreSQL's
-        # unique constraint is the final arbiter when duplicate requests race.
+        # Sources with stable event IDs can safely retry delivery.
         if scrobble.source_event_id:
             existing = await db.execute(
                 select(ScrobbleEvent).where(
@@ -105,20 +119,34 @@ async def process_scrobble(
             await db.flush()
 
         now = datetime.now(timezone.utc)
-        if scrobble.event_type == ScrobbleEventType.STOP:
-            if scrobble.progress_percent > COMPLETION_THRESHOLD_PERCENT:
+        is_completed_stop = (
+            scrobble.event_type == ScrobbleEventType.STOP
+            and scrobble.progress_percent > COMPLETION_THRESHOLD_PERCENT
+        )
+
+        if db_media_type == "movie":
+            if is_completed_stop:
                 entry.status = "watched"
                 entry.completed_at = now
             else:
                 entry.status = "in_progress"
                 entry.completed_at = None
         else:
+            # Finishing an episode advances the series cursor; it must not
+            # mark an entire show watched unless the final cached episode ended.
             entry.status = "in_progress"
             entry.completed_at = None
-
-        if db_media_type == "tv" and scrobble.season is not None:
-            entry.last_watched_season = scrobble.season
-            entry.last_watched_episode = scrobble.episode
+            if is_completed_stop and scrobble.season is not None and scrobble.episode is not None:
+                entry.last_watched_season = scrobble.season
+                entry.last_watched_episode = scrobble.episode
+                if await _is_final_available_episode(
+                    db,
+                    media_item.id,
+                    scrobble.season,
+                    scrobble.episode,
+                ):
+                    entry.status = "watched"
+                    entry.completed_at = now
 
         history = ScrobbleEvent(
             user_id=user.id,
