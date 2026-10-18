@@ -75,7 +75,7 @@ async def process_scrobble(
         raise HTTPException(status_code=422, detail="Media could not be resolved or synchronized")
 
     try:
-        # Sources with stable event IDs can safely retry delivery.
+        # Sources that provide a stable event ID can be deduplicated on retry.
         if scrobble.source_event_id:
             existing = await db.execute(
                 select(ScrobbleEvent).where(
