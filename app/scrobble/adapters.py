@@ -182,9 +182,9 @@ def parse_jellyfin_payload(payload: dict[str, Any], user_token: str) -> Normaliz
         f"tmdb://{provider_ids['Tmdb']}" if provider_ids.get("Tmdb") else None,
         f"imdb://{provider_ids['Imdb']}" if provider_ids.get("Imdb") else None,
         f"tvdb://{provider_ids['Tvdb']}" if provider_ids.get("Tvdb") else None,
-        payload.get("Provider_tmdb"),
-        payload.get("Provider_imdb"),
-        payload.get("Provider_tvdb"),
+        f"tmdb://{payload['Provider_tmdb']}" if payload.get("Provider_tmdb") else None,
+        f"imdb://{payload['Provider_imdb']}" if payload.get("Provider_imdb") else None,
+        f"tvdb://{payload['Provider_tvdb']}" if payload.get("Provider_tvdb") else None,
     ]
 
     # Episode notifications often put series provider IDs on SeriesProviderIds.
