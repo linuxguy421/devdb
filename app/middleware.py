@@ -21,6 +21,9 @@ templates = Jinja2Templates(directory="app/templates")
 # Auth form POSTs that should get a rendered HTML error page instead of
 # plain text / JSON when CSRF validation fails.
 AUTH_FORM_PATHS = {"/login", "/register", "/forgot-password"}
+# Machine-to-machine scrobble calls authenticate with a DevDB bearer token.
+# Requiring a browser CSRF cookie would make webhook clients unusable.
+CSRO_EXEMPT_PREFIXES = ("/api/v1/scrobble/",)
 
 
 class SecurityMiddleware(BaseHTTPMiddleware):
@@ -46,7 +49,8 @@ class SecurityMiddleware(BaseHTTPMiddleware):
                     set_csrf_cookie(response, token)
                 return response
 
-        if method in {"POST", "PUT", "PATCH", "DELETE"}:
+        csrf_exempt = any(path.startswith(prefix) for prefix in CSRO_EXEMPT_PREFIXES)
+        if method in {"POST", "PUT", "PATCH", "DELETE"} and not csrf_exempt:
             # BaseHTTPMiddleware consumes the body stream. Cache it and replay
             # so downstream Form(...) / require_csrf can still read the form.
             body = await request.body()
