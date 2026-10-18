@@ -23,7 +23,7 @@ templates = Jinja2Templates(directory="app/templates")
 AUTH_FORM_PATHS = {"/login", "/register", "/forgot-password"}
 # Machine-to-machine scrobble calls authenticate with a DevDB bearer token.
 # Requiring a browser CSRF cookie would make webhook clients unusable.
-CSRO_EXEMPT_PREFIXES = ("/api/v1/scrobble/",)
+CSRF_EXEMPT_PREFIXES = ("/api/v1/scrobble/",)
 
 
 class SecurityMiddleware(BaseHTTPMiddleware):
@@ -49,7 +49,7 @@ class SecurityMiddleware(BaseHTTPMiddleware):
                     set_csrf_cookie(response, token)
                 return response
 
-        csrf_exempt = any(path.startswith(prefix) for prefix in CSRO_EXEMPT_PREFIXES)
+        csrf_exempt = any(path.startswith(prefix) for prefix in CSRF_EXEMPT_PREFIXES)
         if method in {"POST", "PUT", "PATCH", "DELETE"} and not csrf_exempt:
             # BaseHTTPMiddleware consumes the body stream. Cache it and replay
             # so downstream Form(...) / require_csrf can still read the form.
