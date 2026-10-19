@@ -15,7 +15,7 @@ class APIKey(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     name: Mapped[str] = mapped_column(String(80), nullable=False)
-    key_prefix: Mapped[str] = mapped_column(String(16), nullable=False, unique=True)
+    key_prefix: Mapped[str] = mapped_column(String(24), nullable=False, unique=True)
     key_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
     scopes: Mapped[str] = mapped_column(String(255), nullable=False, default="scrobble:write")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
