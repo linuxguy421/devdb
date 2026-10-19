@@ -10,7 +10,7 @@ def test_generated_api_key_is_unique_and_stored_as_hash_material():
 
     assert raw_key.startswith("ddb_live_")
     assert len(raw_key) >= 40
-    assert prefix == raw_key[:16]
+    assert prefix == raw_key[:24]
     assert key_hash == hashlib.sha256(raw_key.encode("utf-8")).hexdigest()
     assert raw_key != another_key
     assert prefix != another_prefix
