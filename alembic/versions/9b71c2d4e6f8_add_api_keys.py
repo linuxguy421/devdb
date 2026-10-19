@@ -19,7 +19,7 @@ def upgrade() -> None:
         sa.Column("id", sa.Integer(), primary_key=True),
         sa.Column("user_id", sa.Integer(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
         sa.Column("name", sa.String(length=80), nullable=False),
-        sa.Column("key_prefix", sa.String(length=16), nullable=False, unique=True),
+        sa.Column("key_prefix", sa.String(length=24), nullable=False, unique=True),
         sa.Column("key_hash", sa.String(length=64), nullable=False, unique=True),
         sa.Column("scopes", sa.String(length=255), nullable=False, server_default="scrobble:write"),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
