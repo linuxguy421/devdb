@@ -49,8 +49,15 @@ async def _read_plex_request(request: Request) -> Any:
 @router.post("/generic")
 async def scrobble_generic(
     payload: NormalizedScrobble,
+    authorization: str | None = Header(default=None),
+    x_devdb_token: str | None = Header(default=None),
     db: AsyncSession = Depends(get_db),
 ):
+    # Prefer a header credential; retain body-token compatibility for existing clients.
+    if authorization or x_devdb_token:
+        payload.user_token = _header_token(authorization, x_devdb_token)
+    if not payload.user_token:
+        raise HTTPException(status_code=401, detail="Provide a DevDB JWT/API key in the Authorization header or user_token field")
     return await process_scrobble(db, payload, source="generic")
 
 
