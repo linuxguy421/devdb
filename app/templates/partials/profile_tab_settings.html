@@ -33,3 +33,92 @@
         </button>
     </div>
 </div>
+
+
+<div class="bg-neutral-950/50 p-4 rounded-xl border border-neutral-800/80 space-y-4">
+    <div>
+        <h4 class="text-xs font-bold text-neutral-400 uppercase tracking-wider">API Keys</h4>
+        <p class="text-xs text-neutral-500 mt-1">Create keys for integrations such as Jellyfin. Keys do not expire automatically; revoke any key you no longer use.</p>
+    </div>
+    <form id="api-key-create-form" class="flex flex-col sm:flex-row gap-2">
+        <input id="api-key-name" name="name" required maxlength="80" placeholder="Key name (e.g. Jellyfin)"
+               class="min-w-0 flex-1 bg-neutral-900 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white">
+        <button type="submit" class="bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-bold rounded-lg px-4 py-2 text-sm">Generate key</button>
+    </form>
+    <div id="api-key-result" class="hidden space-y-2" aria-live="polite">
+        <p class="text-xs text-amber-300 font-semibold">Copy this key now. It will not be shown again.</p>
+        <code id="api-key-secret" class="block break-all rounded-lg bg-neutral-900 border border-neutral-700 p-3 text-xs text-emerald-300"></code>
+        <button type="button" id="api-key-copied" class="bg-neutral-800 hover:bg-neutral-700 rounded-lg px-3 py-2 text-xs font-bold">I've copied it — refresh key list</button>
+    </div>
+    <p id="api-key-error" class="hidden text-xs text-red-300" role="alert"></p>
+    <div class="space-y-2">
+        {% for key in api_keys or [] %}
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-lg border border-neutral-800 p-3">
+            <div class="min-w-0">
+                <p class="text-sm font-semibold text-white">{{ key.name }}</p>
+                <p class="text-xs text-neutral-500">{{ key.key_prefix }}… · Created {{ key.created_at.strftime('%Y-%m-%d') if key.created_at else 'unknown' }}</p>
+                <p class="text-xs {{ 'text-red-300' if key.revoked_at else 'text-emerald-300' }}">
+                    {{ 'Revoked' if key.revoked_at else 'Active' }}{% if key.last_used_at %} · Last used {{ key.last_used_at.strftime('%Y-%m-%d %H:%M UTC') }}{% endif %}
+                </p>
+            </div>
+            {% if not key.revoked_at %}
+            <button type="button" data-api-key-revoke="{{ key.id }}" class="self-start sm:self-auto bg-red-950/60 hover:bg-red-900/70 border border-red-900/70 text-red-200 rounded-lg px-3 py-2 text-xs font-bold">Revoke</button>
+            {% endif %}
+        </div>
+        {% else %}
+        <p class="text-xs text-neutral-500">No API keys yet.</p>
+        {% endfor %}
+    </div>
+</div>
+<script>
+(function () {
+    const form = document.getElementById("api-key-create-form");
+    if (!form || form.dataset.bound === "true") return;
+    form.dataset.bound = "true";
+    const csrf = document.querySelector('meta[name="csrf-token"]')?.content || "";
+    const error = document.getElementById("api-key-error");
+    const result = document.getElementById("api-key-result");
+    const secret = document.getElementById("api-key-secret");
+    form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        error.classList.add("hidden");
+        const name = document.getElementById("api-key-name").value.trim();
+        try {
+            const response = await fetch("/api/v1/api-keys", {
+                method: "POST",
+                headers: {"Content-Type": "application/json", "X-CSRF-Token": csrf},
+                body: JSON.stringify({name, scope: "scrobble:write"})
+            });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.detail || "Could not create API key");
+            secret.textContent = data.key;
+            result.classList.remove("hidden");
+            form.classList.add("hidden");
+        } catch (e) {
+            error.textContent = e.message || "Could not create API key";
+            error.classList.remove("hidden");
+        }
+    });
+    document.getElementById("api-key-copied")?.addEventListener("click", () => location.reload());
+    document.querySelectorAll("[data-api-key-revoke]").forEach((button) => {
+        button.addEventListener("click", async () => {
+            if (!confirm("Revoke this API key? Integrations using it will stop working immediately.")) return;
+            button.disabled = true;
+            try {
+                const response = await fetch("/api/v1/api-keys/" + button.dataset.apiKeyRevoke, {
+                    method: "DELETE", headers: {"X-CSRF-Token": csrf}
+                });
+                if (!response.ok) {
+                    const data = await response.json().catch(() => ({}));
+                    throw new Error(data.detail || "Could not revoke API key");
+                }
+                location.reload();
+            } catch (e) {
+                error.textContent = e.message || "Could not revoke API key";
+                error.classList.remove("hidden");
+                button.disabled = false;
+            }
+        });
+    });
+})();
+</script>

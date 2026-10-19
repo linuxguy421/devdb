@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.database import get_db
+from app.api_keys.models import APIKey
 from app.models import Friendship, RecoveryCode, User, WatchEntry
 from app.routers.auth import get_current_user_optional as get_current_user
 from app.services.avatars import (
@@ -130,6 +131,10 @@ async def get_profile_tab(
             "watched": len([e for e in entries if e.status == "watched"]),
             "to_watch": len([e for e in entries if e.status == "want_to_watch"]),
         }
+        api_keys_result = await db.execute(
+            select(APIKey).where(APIKey.user_id == current_user.id).order_by(APIKey.created_at.desc())
+        )
+        context["api_keys"] = api_keys_result.scalars().all()
 
     template_map = {
         "edit": "partials/profile_tab_edit.html",

@@ -55,7 +55,7 @@ class NormalizedScrobble(BaseModel):
 
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
-    user_token: Annotated[str, Field(min_length=20, max_length=4096)]
+    user_token: Annotated[str | None, Field(min_length=20, max_length=4096)] = None
     media_identifier: MediaIdentifier
     media_type: ScrobbleMediaType
     season: int | None = Field(default=None, ge=0, le=500)

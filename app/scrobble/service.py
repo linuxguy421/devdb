@@ -6,6 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
+from app.api_keys.service import authenticate_api_key, KEY_PREFIX, SCROBBLE_WRITE_SCOPE
 from app.models import TVSeason, User, WatchEntry
 from app.scrobble.identifiers import resolve_tmdb_identifier
 from app.scrobble.models import ScrobbleEvent
@@ -16,6 +17,12 @@ COMPLETION_THRESHOLD_PERCENT = 85.0
 
 
 async def authenticate_user_token(db: AsyncSession, token: str) -> User:
+    if token.startswith(KEY_PREFIX):
+        user = await authenticate_api_key(db, token, required_scope=SCROBBLE_WRITE_SCOPE)
+        if user is None:
+            raise HTTPException(status_code=401, detail="Invalid, revoked, or insufficiently scoped API key")
+        return user
+
     try:
         payload = jwt.decode(
             token,
