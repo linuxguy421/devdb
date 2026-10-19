@@ -19,13 +19,13 @@ def _hash_key(raw_key: str) -> str:
 def generate_api_key() -> tuple[str, str, str]:
     """Return (raw secret, public prefix, stored hash)."""
     raw_key = f"{KEY_PREFIX}{secrets.token_urlsafe(32)}"
-    return raw_key, raw_key[:16], _hash_key(raw_key)
+    return raw_key, raw_key[:24], _hash_key(raw_key)
 
 
 async def authenticate_api_key(db: AsyncSession, raw_key: str, *, required_scope: str | None = None) -> User | None:
     if not raw_key.startswith(KEY_PREFIX):
         return None
-    result = await db.execute(select(APIKey).where(APIKey.key_prefix == raw_key[:16], APIKey.revoked_at.is_(None)))
+    result = await db.execute(select(APIKey).where(APIKey.key_prefix == raw_key[:24], APIKey.revoked_at.is_(None)))
     api_key = result.scalar_one_or_none()
     if api_key is None or not secrets.compare_digest(api_key.key_hash, _hash_key(raw_key)):
         return None
