@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -46,6 +46,6 @@ async def revoke_api_key(key_id: int, current_user: User = Depends(get_current_u
     if record is None:
         raise HTTPException(status_code=404, detail="API key not found")
     if record.revoked_at is None:
-        record.revoked_at = datetime.now().astimezone()
+        record.revoked_at = datetime.now(timezone.utc)
         await db.commit()
     return None
