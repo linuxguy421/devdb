@@ -16,6 +16,7 @@ from app.database import Base
 # Import all models so Alembic sees the complete metadata graph.
 import app.models
 import app.scrobble.models
+import app.api_keys.models
 
 config = context.config
 
